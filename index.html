@@ -185,6 +185,7 @@ textarea.field{min-height:96px;font-family:var(--mono);font-size:12px}
     <div class="lbl">Valor</div>
     <input class="field" id="adVal" inputmode="text" placeholder="ex.: 205,00">
     <div class="lbl">Categoria</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">💸 PIX é gasto avulso: não é levado para o mês seguinte.</div>
     <div class="catpick" id="adCats"></div>
     <div class="row">
       <button class="btn ghost" onclick="document.getElementById('ovAdd').classList.remove('open')">Cancelar</button>
@@ -266,9 +267,9 @@ textarea.field{min-height:96px;font-family:var(--mono);font-size:12px}
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=4; var APP_DATE='04/08/2026';
+var APP_VER=5; var APP_DATE='04/08/2026';
 var KEY='guimas_despesas_v1';
-var CATS=[{k:'seguro',n:'SEGUROS',ic:'🛡'},{k:'cartao',n:'CARTÕES',ic:'💳'},{k:'outros',n:'OUTROS',ic:'📌'}];
+var CATS=[{k:'seguro',n:'SEGUROS',ic:'🛡'},{k:'cartao',n:'CARTÕES',ic:'💳'},{k:'outros',n:'OUTROS',ic:'📌'},{k:'pix',n:'PIX',ic:'💸'}];
 var state=null, filter='all', askCb=null, EH_ID=null, AD_ID=null, AD_CAT='seguro';
 var LOCK=true; // proteção: o app SEMPRE abre travado
 function toggleLock(){
@@ -588,9 +589,11 @@ function closeMonth(){
  if(!state.items.length){toast('⚠️ Nenhuma despesa neste mês');return}
  var t=totals(state.items);
  var abertas=state.items.filter(function(it){return it.s!=='paid'}).length;
+ var nPix=state.items.filter(function(it){return it.cat==='pix'}).length;
  ask('Fechar '+state.month,
   'Total: '+fmt(t.all)+'\nPago: '+fmt(t.paid)+'\nFicou em aberto: '+fmt(t.pend)+(abertas?' ('+abertas+' conta'+(abertas>1?'s':'')+')':'')
-  +'\n\nO mês vai para o histórico e abre '+nextMonth(state.month)+' com a MESMA lista de despesas, com os valores em branco e tudo como não pago.',
+  +'\n\nO mês vai para o histórico e abre '+nextMonth(state.month)+' com a MESMA lista de despesas fixas, com os valores em branco e tudo como não pago.'
+  +(nPix?'\n\n💸 Os '+nPix+' PIX deste mês NÃO são levados (ficam guardados só no histórico).':''),
   'Fechar mês',
   function(){
    state.history.unshift({
@@ -599,13 +602,13 @@ function closeMonth(){
     text:buildText(state.items,state.month),
     items:JSON.parse(JSON.stringify(state.items))
    });
-   state.items=state.items.map(function(it){
+   state.items=state.items.filter(function(it){return it.cat!=='pix'}).map(function(it){
     return {id:uid(),day:it.day,desc:it.desc,v:0,cat:it.cat,s:'pend'};
    });
    state.month=nextMonth(state.month);
    filter='all';
    save();render();
-   toast('Mês fechado ✓ '+state.month+' aberto com as despesas fixas');
+   toast('Mês fechado ✓ '+state.month+' aberto com as fixas'+(nPix?' (PIX não vieram)':''));
  });
 }
 
@@ -712,7 +715,7 @@ function norm(s){
  toArr(s.items).forEach(function(it){ if(!it) return;
   o.items.push({id:it.id||uid(),day:String(it.day||'').replace(/\D/g,'').slice(0,2),
    desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),
-   cat:(it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro')?it.cat:'outros',
+   cat:(it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',
    s:(it.s==='paid'?'paid':'pend')});
  });
  toArr(s.history).forEach(function(m){ if(!m) return;
