@@ -32,6 +32,15 @@ header{position:sticky;top:0;z-index:50;background:rgba(238,241,245,.94);
   width:172px;font-weight:900;padding:2px 4px;border-radius:6px}
 .htitle input:focus{outline:none;background:#fff}
 #verTag{font-size:10px;color:#9AA3AE;margin:1px 0 3px;letter-spacing:.2px}
+.lockpill{font-size:15px;font-weight:800;padding:4px 12px;border-radius:99px;cursor:pointer;
+  background:var(--red-bg);border:1px solid #E7B9BF;-webkit-user-select:none;user-select:none}
+.lockpill.open{background:var(--green-bg);border-color:#B7E4C7}
+body.locked .del{display:none}
+body.locked .addLine{display:none}
+body.locked .addBig{display:none}
+body.locked .catbtn{pointer-events:none;opacity:.75}
+body.locked .item .desc,body.locked .item .val,body.locked .item .day,body.locked #monthLabel{
+  pointer-events:none;background:transparent;border-color:transparent}
 .syncpill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:99px;
   background:#EDEFF2;color:var(--muted);cursor:pointer;white-space:nowrap}
 .syncpill.on{background:var(--green-bg);color:var(--green)}
@@ -57,6 +66,9 @@ main{padding:12px 12px 0}
   justify-content:space-between;align-items:center;gap:8px;padding:0 2px 8px;
   border-bottom:1px solid var(--line);margin-bottom:6px}
 .cat h2 .sub{font-family:var(--mono);font-size:14px;color:var(--blue)}
+.dayline{font-size:12px;font-weight:800;margin:-2px 2px 6px;letter-spacing:.2px}
+.dayline .mPago{color:var(--green)} .dayline .mFalta{color:var(--red)}
+.dayline .okTag{color:var(--green)}
 .item{display:flex;align-items:center;gap:4px;padding:4px 0}
 .item input{font:inherit;font-size:14px;border:1px solid transparent;background:#F6F8FA;
   border-radius:9px;padding:8px 6px;min-width:0}
@@ -78,8 +90,6 @@ main{padding:12px 12px 0}
 .resline{display:flex;justify-content:space-between;font-size:13px;font-weight:700;
   color:var(--muted);padding:6px 2px;border-top:1px solid var(--line)}
 .resline span:last-child{font-family:var(--mono);color:var(--blue)}
-.payAll{display:block;width:100%;margin-top:8px;padding:11px;border:1px solid #B7E4C7;
-  background:var(--green-bg);color:var(--green);border-radius:10px;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
 .addBig{display:block;width:100%;margin:2px 0 16px;padding:15px;border:1px solid var(--primary);
   background:#fff;color:var(--primary);border-radius:13px;font:inherit;font-size:15px;font-weight:800;cursor:pointer}
 .addLine{display:block;width:100%;margin-top:6px;padding:10px;border:1px dashed var(--line);
@@ -141,7 +151,7 @@ textarea.field{min-height:96px;font-family:var(--mono);font-size:12px}
 <header>
   <div class="hrow">
     <div class="htitle">DESPESAS – <input id="monthLabel" placeholder="mês/ano" maxlength="14"></div>
-    <span class="syncpill" id="syncPill" onclick="openSync()">⚪ sem sync</span>
+    <span style="display:flex;align-items:center;gap:8px"><span class="lockpill" id="lockPill" onclick="toggleLock()">🔒</span><span class="syncpill" id="syncPill" onclick="openSync()">⚪ sem sync</span></span>
   </div>
   <div id="verTag"></div>
   <div class="totais">
@@ -256,10 +266,32 @@ textarea.field{min-height:96px;font-family:var(--mono);font-size:12px}
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=2; var APP_DATE='04/08/2026';
+var APP_VER=4; var APP_DATE='04/08/2026';
 var KEY='guimas_despesas_v1';
 var CATS=[{k:'seguro',n:'SEGUROS',ic:'🛡'},{k:'cartao',n:'CARTÕES',ic:'💳'},{k:'outros',n:'OUTROS',ic:'📌'}];
 var state=null, filter='all', askCb=null, EH_ID=null, AD_ID=null, AD_CAT='seguro';
+var LOCK=true; // proteção: o app SEMPRE abre travado
+function toggleLock(){
+ if(LOCK){
+  ask('Destravar edição','Com a edição liberada é possível marcar contas como pagas, alterar valores e descrições, excluir despesas e fechar o mês.\n\nTrave novamente ao terminar.','Destravar',function(){
+   LOCK=false; updateLockUI(); toast('🔓 Edição liberada — trave ao terminar');
+  });
+ }else{
+  LOCK=true; updateLockUI(); toast('🔒 Valores protegidos');
+ }
+}
+function updateLockUI(){
+ try{
+  document.body.classList.toggle('locked',LOCK);
+  var p=document.getElementById('lockPill');
+  p.className='lockpill'+(LOCK?'':' open');
+  p.textContent=LOCK?'🔒':'🔓';
+ }catch(e){}
+}
+function travado(){
+ if(LOCK){toast('🔒 Travado — toque no cadeado para liberar');return true}
+ return false;
+}
 
 /* ---------- utilitários ---------- */
 function uid(){return Math.random().toString(36).slice(2,9)}
@@ -387,8 +419,14 @@ function render(){
   var sub=0, subPend=0;
   todas.forEach(function(it){ sub+=it.v; if(it.s!=='paid') subPend+=it.v });
   var quitado=(subPend===0);
-  html+='<div class="cat'+(quitado?' done':'')+'"><h2><span>📅 DIA '+(d||'--')+(quitado?' <span class="okTag">tudo pago</span>':'')+'</span>'
-    +'<span class="sub">'+fmt(sub)+'</span></h2>';
+  var subPago=sub-subPend;
+  var linha;
+  if(quitado) linha='<span class="okTag">✓ tudo pago</span>';
+  else if(subPago>0) linha='<span class="mPago">Pago '+fmt(subPago)+'</span> · <span class="mFalta">Falta '+fmt(subPend)+'</span>';
+  else linha='<span class="mFalta">Falta '+fmt(subPend)+'</span>';
+  html+='<div class="cat'+(quitado?' done':'')+'"><h2><span>📅 DIA '+(d||'--')+'</span>'
+    +'<span class="sub">'+fmt(sub)+'</span></h2>'
+    +'<div class="dayline">'+linha+'</div>';
   lista.forEach(function(it){
    var c=catOf(it.cat);
    html+='<div class="item'+(it.s==='paid'?' paid':'')+'">'
@@ -402,9 +440,6 @@ function render(){
     +'<button class="del" onclick="delItem(\''+it.id+'\')">×</button>'
     +'</div>';
   });
-  if(subPend>0&&filter==='all'&&lista.length>1){
-   html+='<button class="payAll" onclick="payDay(\''+d+'\')">✅ Marcar o dia '+d+' inteiro como pago ('+fmt(subPend)+')</button>';
-  }
   html+='<button class="addLine" onclick="openAdd(null,null,\''+d+'\')">+ Adicionar no dia '+d+'</button></div>';
  });
 
@@ -413,7 +448,7 @@ function render(){
  else html+=resumoCats();
  html+='<button class="addBig" onclick="openAdd(null,null,\'\')">+ Nova despesa</button>';
  el.innerHTML=html;
- updateTotals(); updateFilterUI();
+ updateTotals(); updateFilterUI(); updateLockUI();
  try{window.scrollTo(0,_sy)}catch(e){}
 }
 function resumoCats(){
@@ -423,15 +458,6 @@ function resumoCats(){
  }).filter(Boolean).join('');
  if(!linhas) return '';
  return '<div class="cat resumo"><h2><span>📊 RESUMO POR TIPO</span></h2>'+linhas+'</div>';
-}
-function payDay(d){
- var pend=state.items.filter(function(it){return (it.day||'').replace(/\D/g,'')===d&&it.s!=='paid'});
- if(!pend.length) return;
- var soma=0; pend.forEach(function(it){soma+=it.v});
- ask('Pagar o dia '+d,'Marcar as '+pend.length+' despesas do dia '+d+' como pagas?\n\nTotal: '+fmt(soma),'Marcar como pago',function(){
-  pend.forEach(function(it){it.s='paid'});
-  save();render();toast('Dia '+d+' quitado ✓');
- });
 }
 function updateTotals(){
  var t=totals(state.items);
@@ -462,8 +488,10 @@ function blurVal(id,el){var it=find(id);if(it)el.value=it.v?fmt(it.v):''}
 function setDay(id,v){var it=find(id);if(!it)return;it.day=String(v).replace(/\D/g,'').slice(0,2);save();updateTotals()}
 function setDesc(id,v){var it=find(id);if(!it)return;it.desc=v;save()}
 function setVal(id,v){var it=find(id);if(!it)return;it.v=parseVal(v);save();updateTotals()}
-function tgl(id){var it=find(id);if(!it)return;it.s=(it.s==='paid')?'pend':'paid';save();render()}
+function tgl(id){
+ if(travado())return;var it=find(id);if(!it)return;it.s=(it.s==='paid')?'pend':'paid';save();render()}
 function cycleCat(id){
+ if(travado())return;
  var it=find(id);if(!it)return;
  var i=0;for(var j=0;j<CATS.length;j++){if(CATS[j].k===it.cat)i=j}
  it.cat=CATS[(i+1)%CATS.length].k;
@@ -471,6 +499,7 @@ function cycleCat(id){
  toast('Movida para '+catOf(it.cat).n);
 }
 function delItem(id){
+ if(travado())return;
  var it=find(id);if(!it)return;
  ask('Excluir despesa',(it.desc||'(sem descrição)')+' — '+fmt(it.v)+'\n\nEssa despesa some do mês atual. O histórico dos meses fechados não muda.','Excluir',function(){
   state.items=state.items.filter(function(x){return x.id!==id});
@@ -478,6 +507,7 @@ function delItem(id){
  });
 }
 function openAdd(id,cat,day){
+ if(travado())return;
  AD_ID=id||null;
  var it=id?find(id):null;
  AD_CAT=it?it.cat:(cat||'outros');
@@ -554,6 +584,7 @@ function copyMonth(){
 
 /* ---------- fechar mês ---------- */
 function closeMonth(){
+ if(travado())return;
  if(!state.items.length){toast('⚠️ Nenhuma despesa neste mês');return}
  var t=totals(state.items);
  var abertas=state.items.filter(function(it){return it.s!=='paid'}).length;
@@ -603,6 +634,7 @@ function copyHist(id){
  copyText(m.text,'Mês '+m.month+' copiado ✓');
 }
 function delHist(id){
+ if(travado())return;
  var m=state.history.filter(function(x){return x.id===id})[0]; if(!m)return;
  ask('Excluir do histórico','Excluir o mês '+m.month+' ('+fmt(m.all)+') do histórico? Isso não pode ser desfeito.','Excluir',function(){
   state.history=state.history.filter(function(x){return x.id!==id});
@@ -618,6 +650,7 @@ function openHistEdit(id){
  document.getElementById('ovEditHist').classList.add('open');
 }
 function saveHistEdit(){
+ if(travado())return;
  var m=state.history.filter(function(x){return x.id===EH_ID})[0]; if(!m)return;
  var nm=(document.getElementById('ehMonth').value||'').trim();
  var nc=(document.getElementById('ehClosed').value||'').trim();
@@ -644,6 +677,7 @@ function exportBackup(){
  toast('Backup gerado ✓');
 }
 function importBackup(input){
+ if(travado()){input.value='';return}
  var f=input.files&&input.files[0]; if(!f)return;
  var r=new FileReader();
  r.onload=function(){
@@ -840,7 +874,7 @@ setInterval(checkUpdate,15*60*1000);
 /* ---------- início ---------- */
 state=load();
 var mlEl=document.getElementById('monthLabel');
-mlEl.addEventListener('input',function(){state.month=this.value;save()});
+mlEl.addEventListener('input',function(){if(LOCK){this.value=state.month||'';return}state.month=this.value;save()});
 mlEl.addEventListener('blur',function(){
  var n=normMonth(this.value);
  if(n!==state.month){state.month=n;this.value=n;save()}
