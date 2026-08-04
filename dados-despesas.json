@@ -1,0 +1,142 @@
+{
+ "month": "08/2026",
+ "items": [
+  {
+   "id": "kxt6rfk",
+   "day": "04",
+   "desc": "Filme Michelli",
+   "v": 3000,
+   "cat": "outros",
+   "s": "pend"
+  },
+  {
+   "id": "m3mupwq",
+   "day": "05",
+   "desc": "Seguro Prime — todos os carros",
+   "v": 177600,
+   "cat": "seguro",
+   "s": "pend"
+  },
+  {
+   "id": "x238uto",
+   "day": "05",
+   "desc": "Juros Abusivo",
+   "v": 35100,
+   "cat": "outros",
+   "s": "pend"
+  },
+  {
+   "id": "iowkzbx",
+   "day": "10",
+   "desc": "Seguro Atual — todos os carros",
+   "v": 105714,
+   "cat": "seguro",
+   "s": "pend"
+  },
+  {
+   "id": "bwc22sr",
+   "day": "10",
+   "desc": "Cartão Inter Fabio",
+   "v": 400000,
+   "cat": "cartao",
+   "s": "pend"
+  },
+  {
+   "id": "pnyi8re",
+   "day": "10",
+   "desc": "Cartão Will Hudson",
+   "v": 600000,
+   "cat": "cartao",
+   "s": "pend"
+  },
+  {
+   "id": "y77l7ho",
+   "day": "10",
+   "desc": "Internet Vivo Celular",
+   "v": 9208,
+   "cat": "outros",
+   "s": "pend"
+  },
+  {
+   "id": "7iw81e5",
+   "day": "15",
+   "desc": "Cartão PicPay Hudson",
+   "v": 500000,
+   "cat": "cartao",
+   "s": "pend"
+  },
+  {
+   "id": "ble3nr4",
+   "day": "20",
+   "desc": "Seguro Atual — todos os carros",
+   "v": 282731,
+   "cat": "seguro",
+   "s": "pend"
+  },
+  {
+   "id": "g3i3f0b",
+   "day": "20",
+   "desc": "Cartão Mercado Pago Hudson",
+   "v": 300000,
+   "cat": "cartao",
+   "s": "pend"
+  },
+  {
+   "id": "niywgxt",
+   "day": "20",
+   "desc": "Cartão Caixa Hudson",
+   "v": 300000,
+   "cat": "cartao",
+   "s": "pend"
+  },
+  {
+   "id": "befn54j",
+   "day": "22",
+   "desc": "Cartão Nubank Michelli",
+   "v": 50000,
+   "cat": "cartao",
+   "s": "pend"
+  },
+  {
+   "id": "cesfcjl",
+   "day": "24",
+   "desc": "Cartão Itau Hudson",
+   "v": 400000,
+   "cat": "cartao",
+   "s": "pend"
+  },
+  {
+   "id": "spxfzwm",
+   "day": "25",
+   "desc": "Cartão Inter Hudson",
+   "v": 400000,
+   "cat": "cartao",
+   "s": "pend"
+  },
+  {
+   "id": "skpw8hi",
+   "day": "25",
+   "desc": "Prestação Terreno Inicio Agosto 2020",
+   "v": 243016,
+   "cat": "outros",
+   "s": "pend"
+  },
+  {
+   "id": "bdiyui1",
+   "day": "26",
+   "desc": "Cartão Carrefour Fabio",
+   "v": 700000,
+   "cat": "cartao",
+   "s": "pend"
+  },
+  {
+   "id": "cqhlovk",
+   "day": "30",
+   "desc": "Plano de Saúde Porto Seguro",
+   "v": 129406,
+   "cat": "outros",
+   "s": "pend"
+  }
+ ],
+ "history": []
+}
