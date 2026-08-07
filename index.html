@@ -169,7 +169,7 @@ textarea.field{min-height:96px;font-family:var(--mono);font-size:12px}
 <main id="list"></main>
 
 <div class="bottom">
-  <button class="wa" onclick="copyMonth()">📋 Copiar resumo</button>
+  <button class="wa" onclick="openAdd(null,null,'')">＋ Nova despesa</button>
   <button onclick="openMenu()">☰ Menu</button>
 </div>
 
@@ -267,7 +267,7 @@ textarea.field{min-height:96px;font-family:var(--mono);font-size:12px}
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=6; var APP_DATE='04/08/2026';
+var APP_VER=8; var APP_DATE='04/08/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -395,7 +395,7 @@ function stamp(){
 function migrarSeguros(){
  /* troca as linhas de seguro agrupadas pelo detalhe carro a carro — uma única vez */
  try{
-  if(localStorage.getItem('guimas_mig_seguros')==='1') return;
+  if(state.migs&&state.migs.seg1) return;
  }catch(e){}
  var antigos=state.items.filter(function(i){
   return i.cat==='seguro'&&/todos os carros/i.test(i.desc||'');
@@ -411,7 +411,12 @@ function migrarSeguros(){
   save(); render();
   toast('🛡 Seguros detalhados por carro');
  }
- try{ localStorage.setItem('guimas_mig_seguros','1') }catch(e){}
+ var temMobi=itens().filter(function(i){return String(i.desc||'').replace(/\s/g,'').toUpperCase().indexOf('LUH7G30')>-1});
+ if(!temMobi.length){
+  state.items.push({id:uid(),day:'20',desc:'Seguro Mobi - LUH7G30',v:20400,cat:'seguro',s:'pend',at:agora()});
+  render(); toast('🛡 Seguro Mobi - LUH7G30 adicionado');
+ }
+ state.migs=state.migs||{}; state.migs.seg1=true; save();
 }
 function blank(){return {month:thisMonth(),rev:0,dev:'',items:[],history:[]}}
 function load(){
@@ -431,7 +436,7 @@ function totals(items){
 }
 function catTotal(k){
  var t=0;
- state.items.forEach(function(it){ if(it.cat===k) t+=it.v });
+ itens().forEach(function(it){ if(it.cat===k) t+=it.v });
  return t;
 }
 function byDay(a,b){
@@ -449,8 +454,8 @@ function render(){
 
  // agrupa por DIA de vencimento — é assim que o pagamento acontece
  var dias=[];
- state.items.forEach(function(it){
-  var d=(it.day||'').replace(/\D/g,'');
+ itens().forEach(function(it){
+  var d=normDia(it.day);
   if(dias.indexOf(d)<0) dias.push(d);
  });
  dias.sort(function(a,b){
@@ -460,7 +465,7 @@ function render(){
  });
 
  dias.forEach(function(d){
-  var todas=state.items.filter(function(it){return (it.day||'').replace(/\D/g,'')===d});
+  var todas=itens().filter(function(it){return normDia(it.day)===d});
   var lista=todas.filter(function(it){return filter==='all'||(filter==='paid'?it.s==='paid':it.s!=='paid')})
                  .sort(function(a,b){return String(a.desc||'').localeCompare(String(b.desc||''))});
   if(!lista.length) return;
@@ -492,7 +497,7 @@ function render(){
   html+='<button class="addLine" onclick="openAdd(null,null,\''+d+'\')">+ Adicionar no dia '+d+'</button></div>';
  });
 
- if(!state.items.length) html='<div class="empty">Nenhuma despesa ainda.<br>Toque em <b>+ Nova despesa</b> para começar.</div>';
+ if(!itens().length) html='<div class="empty">Nenhuma despesa ainda.<br>Toque em <b>+ Nova despesa</b> para começar.</div>';
  else if(!shown) html+='<div class="empty">Nenhuma despesa nesse filtro.</div>';
  else html+=resumoCats();
  html+='<button class="addBig" onclick="openAdd(null,null,\'\')">+ Nova despesa</button>';
@@ -509,7 +514,7 @@ function resumoCats(){
  return '<div class="cat resumo"><h2><span>📊 RESUMO POR TIPO</span></h2>'+linhas+'</div>';
 }
 function updateTotals(){
- var t=totals(state.items);
+ var t=totals(itens());
  document.getElementById('totAll').textContent=fmt(t.all);
  document.getElementById('totPaid').textContent=fmt(t.paid);
  document.getElementById('totPend').textContent=fmt(t.pend);
@@ -524,26 +529,35 @@ function updateFilterUI(){
  if(filter==='all'){bar.classList.remove('on')}
  else{
   bar.classList.add('on');
-  var n=state.items.filter(function(it){return filter==='paid'?it.s==='paid':it.s!=='paid'}).length;
+  var n=itens().filter(function(it){return filter==='paid'?it.s==='paid':it.s!=='paid'}).length;
   document.getElementById('filterTxt').textContent=(filter==='paid'?'🔎 Só as pagas ('+n+')':'🔎 Só as que faltam pagar ('+n+')');
  }
 }
 function setFilter(f){filter=(filter===f&&f!=='all')?'all':f;render()}
 
 /* ---------- edição ---------- */
-function find(id){return state.items.filter(function(it){return it.id===id})[0]}
+function agora(){return Date.now()}
+function normDia(d){
+ var s=String(d==null?'':d).replace(/\D/g,'').slice(0,2);
+ if(!s) return '';
+ if(s.length===1) s='0'+s;
+ if(s==='00') s='';
+ return s;
+}
+function itens(){return toArr(state.items).filter(function(i){return i&&!i.del})}
+function find(id){return toArr(state.items).filter(function(it){return it.id===id})[0]}
 function rawVal2(id){var it=find(id);return it?rawVal(it.v):''}
 function blurVal(id,el){var it=find(id);if(it)el.value=it.v?fmt(it.v):''}
-function setDay(id,v){var it=find(id);if(!it)return;it.day=String(v).replace(/\D/g,'').slice(0,2);save();updateTotals()}
-function setDesc(id,v){var it=find(id);if(!it)return;it.desc=v;save()}
-function setVal(id,v){var it=find(id);if(!it)return;it.v=parseVal(v);save();updateTotals()}
+function setDay(id,v){var it=find(id);if(!it)return;it.day=normDia(v);it.at=agora();save();updateTotals()}
+function setDesc(id,v){var it=find(id);if(!it)return;it.desc=v;it.at=agora();save()}
+function setVal(id,v){var it=find(id);if(!it)return;it.v=parseVal(v);it.at=agora();save();updateTotals()}
 function tgl(id){
- if(travado())return;var it=find(id);if(!it)return;it.s=(it.s==='paid')?'pend':'paid';save();render()}
+ if(travado())return;var it=find(id);if(!it)return;it.s=(it.s==='paid')?'pend':'paid';it.at=agora();save();render()}
 function cycleCat(id){
  if(travado())return;
  var it=find(id);if(!it)return;
  var i=0;for(var j=0;j<CATS.length;j++){if(CATS[j].k===it.cat)i=j}
- it.cat=CATS[(i+1)%CATS.length].k;
+ it.cat=CATS[(i+1)%CATS.length].k; it.at=agora();
  save();render();
  toast('Movida para '+catOf(it.cat).n);
 }
@@ -551,7 +565,7 @@ function delItem(id){
  if(travado())return;
  var it=find(id);if(!it)return;
  ask('Excluir despesa',(it.desc||'(sem descrição)')+' — '+fmt(it.v)+'\n\nEssa despesa some do mês atual. O histórico dos meses fechados não muda.','Excluir',function(){
-  state.items=state.items.filter(function(x){return x.id!==id});
+  toArr(state.items).forEach(function(x){ if(x.id===id){x.del=true;x.at=agora()} });
   save();render();toast('Despesa excluída');
  });
 }
@@ -573,15 +587,15 @@ function renderCatPick(){
  }).join('');
 }
 function saveAdd(){
- var day=(document.getElementById('adDay').value||'').replace(/\D/g,'').slice(0,2);
+ var day=normDia(document.getElementById('adDay').value);
  var desc=(document.getElementById('adDesc').value||'').trim();
  var v=parseVal(document.getElementById('adVal').value);
  if(!desc){toast('⚠️ Escreva a descrição');return}
  if(AD_ID){
   var it=find(AD_ID);
-  if(it){it.day=day;it.desc=desc;it.v=v;it.cat=AD_CAT}
+  if(it){it.day=day;it.desc=desc;it.v=v;it.cat=AD_CAT;it.at=agora()}
  }else{
-  state.items.push({id:uid(),day:day,desc:desc,v:v,cat:AD_CAT,s:'pend'});
+  state.items.push({id:uid(),day:day,desc:desc,v:v,cat:AD_CAT,s:'pend',at:agora()});
  }
  save();
  document.getElementById('ovAdd').classList.remove('open');
@@ -592,11 +606,11 @@ function saveAdd(){
 /* ---------- texto para WhatsApp ---------- */
 function buildText(items,month){
  var dias=[];
- items.forEach(function(it){var d=(it.day||'').replace(/\D/g,'');if(dias.indexOf(d)<0)dias.push(d)});
+ items.forEach(function(it){var d=normDia(it.day);if(dias.indexOf(d)<0)dias.push(d)});
  dias.sort(function(a,b){var x=parseInt(a,10),y=parseInt(b,10);if(isNaN(x))x=99;if(isNaN(y))y=99;return x-y});
  var blocks=[];
  dias.forEach(function(d){
-  var lista=items.filter(function(it){return (it.day||'').replace(/\D/g,'')===d})
+  var lista=items.filter(function(it){return normDia(it.day)===d})
                  .sort(function(a,b){return String(a.desc||'').localeCompare(String(b.desc||''))});
   if(!lista.length) return;
   var sub=0; lista.forEach(function(it){sub+=it.v});
@@ -626,18 +640,14 @@ function legacyCopy(txt,okMsg){
  try{document.execCommand('copy');toast(okMsg)}catch(e){toast('⚠️ Não consegui copiar')}
  document.body.removeChild(ta);
 }
-function copyMonth(){
- if(!state.items.length){toast('⚠️ Nenhuma despesa para copiar');return}
- copyText(buildText(state.items,state.month),'Resumo copiado ✓ Cole no WhatsApp');
-}
 
 /* ---------- fechar mês ---------- */
 function closeMonth(){
  if(travado())return;
- if(!state.items.length){toast('⚠️ Nenhuma despesa neste mês');return}
- var t=totals(state.items);
- var abertas=state.items.filter(function(it){return it.s!=='paid'}).length;
- var nPix=state.items.filter(function(it){return it.cat==='pix'}).length;
+ if(!itens().length){toast('⚠️ Nenhuma despesa neste mês');return}
+ var t=totals(itens());
+ var abertas=itens().filter(function(it){return it.s!=='paid'}).length;
+ var nPix=itens().filter(function(it){return it.cat==='pix'}).length;
  ask('Fechar '+state.month,
   'Total: '+fmt(t.all)+'\nPago: '+fmt(t.paid)+'\nFicou em aberto: '+fmt(t.pend)+(abertas?' ('+abertas+' conta'+(abertas>1?'s':'')+')':'')
   +'\n\nO mês vai para o histórico e abre '+nextMonth(state.month)+' com a MESMA lista de despesas fixas, com os valores em branco e tudo como não pago.'
@@ -647,11 +657,11 @@ function closeMonth(){
    state.history.unshift({
     id:uid(), month:state.month, closedAt:stamp(),
     paid:t.paid, pend:t.pend, all:t.all,
-    text:buildText(state.items,state.month),
-    items:JSON.parse(JSON.stringify(state.items))
+    text:buildText(itens(),state.month),
+    items:JSON.parse(JSON.stringify(itens()))
    });
-   state.items=state.items.filter(function(it){return it.cat!=='pix'}).map(function(it){
-    return {id:uid(),day:it.day,desc:it.desc,v:0,cat:it.cat,s:'pend'};
+   state.items=itens().filter(function(it){return it.cat!=='pix'}).map(function(it){
+    return {id:uid(),day:it.day,desc:it.desc,v:0,cat:it.cat,s:'pend',at:agora()};
    });
    state.month=nextMonth(state.month);
    filter='all';
@@ -719,7 +729,7 @@ function saveHistEdit(){
 
 /* ---------- backup ---------- */
 function exportBackup(){
- var data=JSON.stringify({month:state.month,items:state.items,history:state.history},null,1);
+ var data=JSON.stringify({month:state.month,items:itens(),history:state.history},null,1);
  var blob=new Blob([data],{type:'application/json'});
  var a=document.createElement('a');
  a.href=URL.createObjectURL(blob);
@@ -759,12 +769,12 @@ function toArr(x){
 }
 function norm(s){
  if(!s||typeof s!=='object') s={};
- var o={month:normMonth(typeof s.month==='string'&&s.month?s.month:thisMonth()),rev:s.rev||0,dev:s.dev||'',items:[],history:[]};
+ var o={migs:(s.migs||null),month:normMonth(typeof s.month==='string'&&s.month?s.month:thisMonth()),rev:s.rev||0,dev:s.dev||'',items:[],history:[]};
  toArr(s.items).forEach(function(it){ if(!it) return;
-  o.items.push({id:it.id||uid(),day:String(it.day||'').replace(/\D/g,'').slice(0,2),
+  o.items.push({id:it.id||uid(),day:normDia(it.day),
    desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),
    cat:(it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',
-   s:(it.s==='paid'?'paid':'pend')});
+   s:(it.s==='paid'?'paid':'pend'),at:it.at||0,del:!!it.del});
  });
  toArr(s.history).forEach(function(m){ if(!m) return;
   o.history.push({id:m.id||uid(),month:normMonth(m.month||''),closedAt:m.closedAt||'',
@@ -836,11 +846,32 @@ function inputFocused(){
  var a=document.activeElement;
  return !!(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'));
 }
+function mesclarLista(rem,loc){
+ var mapa={};
+ function por(lista){
+  toArr(lista).forEach(function(it){
+   if(!it) return;
+   var k=it.id||('k:'+String(it.desc||'')+'|'+String(it.day||''));
+   var at=it.at||0, ja=mapa[k];
+   if(!ja||at>=(ja.at||0)) mapa[k]=it;
+  });
+ }
+ por(loc); por(rem);
+ return Object.keys(mapa).map(function(k){return mapa[k]});
+}
+function mesclar(remoto,local){
+ var o={};
+ for(var k in remoto) if(Object.prototype.hasOwnProperty.call(remoto,k)) o[k]=remoto[k];
+ o.items=mesclarLista(remoto.items,local.items);   /* nenhuma despesa some */
+ if(remoto.history===undefined&&toArr(local.history).length) o.history=local.history;
+ if(remoto.migs===undefined&&local.migs) o.migs=local.migs;
+ return o;
+}
 function onRemote(v){
  if(!v.rev||v.dev===DEV){ if((v.rev||0)<(state.rev||0)) schedulePush(); return }
  if(v.rev<=(state.rev||0)){ if(v.rev<(state.rev||0)) schedulePush(); return }
  if(inputFocused()){SYNC.pendingRemote=v;return}
- adopt(v);
+ adopt(mesclar(v,state));
 }
 function adopt(v){
  state=norm(v); SYNC.pendingRemote=null;
