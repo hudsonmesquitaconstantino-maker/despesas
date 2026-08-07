@@ -267,8 +267,35 @@ textarea.field{min-height:96px;font-family:var(--mono);font-size:12px}
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=5; var APP_DATE='04/08/2026';
+var APP_VER=6; var APP_DATE='04/08/2026';
 var KEY='guimas_despesas_v1';
+var SEGUROS_CARRO=[
+ {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
+ {d:'05',n:'Seguro Logan - PXO9H80',v:20500},
+ {d:'05',n:'Seguro Logan - KYI8I20',v:20500},
+ {d:'05',n:'Seguro Voyage - QUB5G52',v:27700},
+ {d:'05',n:'Seguro Grand Siena - LMX7B24',v:23700},
+ {d:'05',n:'Seguro Logan - KXJ8F38',v:20500},
+ {d:'05',n:'Seguro Grand Siena - LMY2A63',v:23700},
+ {d:'05',n:'Seguro Grand Siena - LSK2B23',v:20500},
+ {d:'10',n:'Seguro Mobi - RGB3E35',v:21202},
+ {d:'10',n:'Seguro Cronos - LUO2B58',v:26678},
+ {d:'10',n:'Seguro Versa - FHP4B47',v:18878},
+ {d:'10',n:'Seguro Uno - IXY2H87',v:20078},
+ {d:'10',n:'Seguro Logan - PWL8H97',v:18878},
+ {d:'20',n:'Seguro Argo - QEK3D83',v:19712},
+ {d:'20',n:'Seguro Argo - RVX9H52',v:26463},
+ {d:'20',n:'Seguro Cobalt - IYZ7E28',v:19589},
+ {d:'20',n:'Seguro Argo - RUK6I75',v:26951},
+ {d:'20',n:'Seguro Ka - AZH5D13',v:18878},
+ {d:'20',n:'Seguro Ka - PZT0F79',v:20078},
+ {d:'20',n:'Seguro Sandero - PVC8G42',v:18878},
+ {d:'20',n:'Seguro Logan - QQF8J26',v:20078},
+ {d:'20',n:'Seguro Logan - LSY7B47',v:18878},
+ {d:'20',n:'Seguro Uno - QMW8H90',v:18878},
+ {d:'20',n:'Seguro Sandero - PYO4A55',v:18878},
+ {d:'20',n:'Seguro Hilux - DVS7C98',v:55470}
+];
 var CATS=[{k:'seguro',n:'SEGUROS',ic:'🛡'},{k:'cartao',n:'CARTÕES',ic:'💳'},{k:'outros',n:'OUTROS',ic:'📌'},{k:'pix',n:'PIX',ic:'💸'}];
 var state=null, filter='all', askCb=null, EH_ID=null, AD_ID=null, AD_CAT='seguro';
 var LOCK=true; // proteção: o app SEMPRE abre travado
@@ -365,6 +392,27 @@ function stamp(){
 }
 
 /* ---------- estado ---------- */
+function migrarSeguros(){
+ /* troca as linhas de seguro agrupadas pelo detalhe carro a carro — uma única vez */
+ try{
+  if(localStorage.getItem('guimas_mig_seguros')==='1') return;
+ }catch(e){}
+ var antigos=state.items.filter(function(i){
+  return i.cat==='seguro'&&/todos os carros/i.test(i.desc||'');
+ });
+ if(antigos.length){
+  var pagos={};
+  antigos.forEach(function(i){ pagos[String(i.day)]=(i.s==='paid') });
+  state.items=state.items.filter(function(i){ return antigos.indexOf(i)<0 });
+  SEGUROS_CARRO.forEach(function(s){
+   state.items.push({id:uid(),day:s.d,desc:s.n,v:s.v,cat:'seguro',
+    s:(pagos[s.d]?'paid':'pend')});
+  });
+  save(); render();
+  toast('🛡 Seguros detalhados por carro');
+ }
+ try{ localStorage.setItem('guimas_mig_seguros','1') }catch(e){}
+}
 function blank(){return {month:thisMonth(),rev:0,dev:'',items:[],history:[]}}
 function load(){
  try{
@@ -876,6 +924,7 @@ setInterval(checkUpdate,15*60*1000);
 
 /* ---------- início ---------- */
 state=load();
+setTimeout(function(){try{migrarSeguros()}catch(e){}},50);
 var mlEl=document.getElementById('monthLabel');
 mlEl.addEventListener('input',function(){if(LOCK){this.value=state.month||'';return}state.month=this.value;save()});
 mlEl.addEventListener('blur',function(){
