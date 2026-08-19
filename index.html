@@ -267,7 +267,7 @@ textarea.field{min-height:96px;font-family:var(--mono);font-size:12px}
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=8; var APP_DATE='04/08/2026';
+var APP_VER=9; var APP_DATE='14/08/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -836,6 +836,18 @@ function startSync(){
 function push(){
  if(!SYNC.ref){SYNC.pendingPush=true;return}
  SYNC.pendingPush=false;
+ /* trava de segurança: se estou prestes a gravar pouquíssimos itens, primeiro
+    leio a nuvem uma vez; se lá houver muito mais, mesclo em vez de sobrescrever.
+    Impede que um aparelho recém-limpo zere as contas de todo mundo. */
+ var meus=contaItens(state);
+ if(meus<=1){
+  SYNC.ref.once('value').then(function(snap){
+   var v=snap.val();
+   if(v&&contaItens(v)>meus){ adopt(mesclar(v,state)); schedulePush(); return }
+   SYNC.ref.set(state).catch(function(){SYNC.pendingPush=true});
+  }).catch(function(){ SYNC.ref.set(state).catch(function(){SYNC.pendingPush=true}); });
+  return;
+ }
  SYNC.ref.set(state).catch(function(){SYNC.pendingPush=true});
 }
 function schedulePush(){
@@ -867,11 +879,20 @@ function mesclar(remoto,local){
  if(remoto.migs===undefined&&local.migs) o.migs=local.migs;
  return o;
 }
+function contaItens(x){ return toArr(x&&x.items).filter(function(i){return i&&!i.del}).length }
 function onRemote(v){
- if(!v.rev||v.dev===DEV){ if((v.rev||0)<(state.rev||0)) schedulePush(); return }
- if(v.rev<=(state.rev||0)){ if(v.rev<(state.rev||0)) schedulePush(); return }
- if(inputFocused()){SYNC.pendingRemote=v;return}
- adopt(mesclar(v,state));
+ if(!v){ push(); return }
+ if(v.dev===DEV){ /* eco do meu próprio push: nada a fazer */ return }
+ if(inputFocused()){ SYNC.pendingRemote=v; return }
+ /* A UNIÃO SEMPRE RODA — nenhuma despesa some, venha de onde vier o rev.
+    mesclarLista junta por id e mantém a versão de maior 'at' de cada item,
+    então a ordem do merge não perde lançamento nem ressuscita apagado. */
+ var juntos=mesclar(v,state);
+ var antes=contaItens(state), depois=contaItens(juntos), naNuvem=contaItens(v);
+ adopt(juntos);
+ /* se o merge revelou itens que não estavam na nuvem (ou vice-versa), reenvia
+    o conjunto completo para os dois lados ficarem idênticos. */
+ if(depois>naNuvem || depois>antes) schedulePush();
 }
 function adopt(v){
  state=norm(v); SYNC.pendingRemote=null;
