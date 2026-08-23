@@ -629,18 +629,160 @@ textarea.field{min-height:110px;font-family:var(--mono);font-size:12.5px}
   *,*:before,*:after{animation-duration:.001ms!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 }
 
+
+
+/* ============================================================
+   GUIMASCAR SUITE — DESPESAS v11
+   Redesign estrutural de apresentação. Motor e dados preservados.
+   ============================================================ */
+:root{
+  --surface:#FFFFFF;
+  --surface-2:#F7F8FA;
+  --surface-3:#EEF1F4;
+  --green-strong:#137A49;
+  --red-strong:#C24444;
+}
+body{
+  background:
+    radial-gradient(circle at 12% -8%,rgba(47,109,82,.075),transparent 28%),
+    linear-gradient(180deg,#F5F7F9 0%,#EEF2F4 100%);
+}
+header{
+  position:relative;
+  top:auto;
+  padding:calc(12px + env(safe-area-inset-top)) 14px 13px;
+  background:rgba(246,248,250,.90);
+  border-bottom:1px solid rgba(25,32,40,.055);
+  box-shadow:0 8px 28px rgba(25,32,40,.045);
+}
+.suiteHead{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}
+.suiteBrand{min-width:0}
+.suiteEyebrow{font-size:9.5px;font-weight:800;letter-spacing:1.15px;color:#8B939C;margin:2px 0 4px}
+.suiteTitle{font-size:27px;line-height:1;font-weight:820;letter-spacing:-1px;color:#15191D}
+.headActions{display:flex;align-items:center;gap:7px;flex:none}
+.lockpill{width:42px;height:42px;min-width:42px;min-height:42px;padding:0;border-radius:14px;font-size:18px;background:rgba(255,255,255,.82)}
+.syncpill{min-height:42px;border-radius:14px;padding:0 11px;font-size:10.5px;font-weight:760;background:rgba(255,255,255,.82)}
+.monthCard{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 12px 8px;margin-bottom:9px;
+  border:1px solid rgba(25,32,40,.065);border-radius:18px;
+  background:rgba(255,255,255,.80);box-shadow:0 5px 18px rgba(25,32,40,.035);
+}
+.monthMeta{display:flex;flex-direction:column;gap:3px;min-width:98px}
+.monthLabelTxt{font-size:9px;font-weight:800;letter-spacing:.9px;color:#9AA1A9}
+#verTag{font-size:9.5px;margin:0;color:#A1A7AE;white-space:nowrap}
+#monthLabel{
+  width:min(58vw,235px);min-width:0;border:none;background:transparent;
+  text-align:right;color:#1B2025;font-size:22px;font-weight:820;letter-spacing:-.7px;padding:5px 2px;border-radius:10px;
+}
+#monthLabel:focus{outline:none;background:#F3F6F7;box-shadow:0 0 0 3px rgba(22,121,76,.07)}
+body.locked #monthLabel{background:transparent}
+.totais{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:0}
+.tot{
+  min-height:70px;align-items:flex-start;text-align:left;padding:10px 12px;border-radius:18px;
+  border:1px solid rgba(25,32,40,.06);background:rgba(255,255,255,.92);
+  box-shadow:0 7px 20px rgba(20,28,36,.045);
+}
+.tot.totalMaster{grid-column:1/-1;min-height:78px;position:relative;overflow:hidden;padding-right:86px}
+.tot.totalMaster:after{content:"R$";position:absolute;right:18px;top:50%;transform:translateY(-54%);font-size:38px;font-weight:850;color:rgba(25,32,40,.045);letter-spacing:-2px}
+.tot .lb{font-size:9.5px;letter-spacing:.8px;color:#8C939B}
+.tot .vl{font-size:20px;line-height:1.02;margin-top:6px;letter-spacing:-.85px;color:#20262C}
+.tot.totalMaster .vl{font-size:26px;letter-spacing:-1px}
+.tot.g{background:linear-gradient(180deg,#FFFFFF 0%,#F6FCF8 100%);border-color:rgba(19,122,73,.10)}
+.tot.r{background:linear-gradient(180deg,#FFFFFF 0%,#FFF8F8 100%);border-color:rgba(194,68,68,.10)}
+.tot.g .vl{color:var(--green-strong)} .tot.r .vl{color:var(--red-strong)}
+.tot.sel,.tot.g.sel{transform:translateY(-1px);box-shadow:0 0 0 3px rgba(30,42,58,.055),0 10px 24px rgba(20,28,36,.065)}
+.filterbar{position:sticky;top:calc(8px + env(safe-area-inset-top));z-index:45;margin:8px 12px 0;box-shadow:0 8px 24px rgba(20,28,36,.06)}
+main{padding:16px 10px 8px;max-width:620px}
+.cat{
+  border-radius:24px;padding:0;margin-bottom:14px;overflow:hidden;
+  border:1px solid rgba(25,32,40,.07);background:rgba(255,255,255,.96);
+  box-shadow:0 10px 30px rgba(17,24,31,.055),0 1px 2px rgba(17,24,31,.025);
+  animation:despCardIn .32s var(--ease) both;
+}
+.cat.done{background:linear-gradient(180deg,#FFFFFF 0%,#F8FCF9 100%);border-color:rgba(19,122,73,.12)}
+.cat h2{
+  min-height:54px;margin:0;padding:15px 16px 13px;border-bottom:1px solid rgba(25,32,40,.055);
+  font-size:15px;font-weight:820;letter-spacing:-.25px;background:rgba(248,249,250,.72);
+}
+.cat.done h2{background:rgba(244,251,247,.78)}
+.cat h2 .sub{font-size:17px;color:#20262D;letter-spacing:-.55px}
+.dayline{margin:0;padding:8px 16px 7px;min-height:31px;font-size:11px;border-bottom:1px solid rgba(25,32,40,.045)}
+.dayline .okTag,.okTag{display:inline-flex;align-items:center;margin:0;padding:4px 8px;font-size:10px;background:#EAF7F0;border:1px solid rgba(19,122,73,.08)}
+.item{
+  display:grid;grid-template-columns:42px minmax(0,1fr) 100px 42px 22px;align-items:center;
+  gap:7px;min-height:62px;padding:8px 12px;
+}
+.item + .item{border-top:1px solid rgba(25,32,40,.05)}
+.item .catbtn{width:40px;height:40px;border-radius:13px;background:#F4F6F7;font-size:18px}
+.item input{min-height:40px;border-radius:11px;padding:8px;background:transparent}
+.item .desc{font-size:13.7px;font-weight:680;letter-spacing:-.1px;color:#242A30;min-width:0;text-overflow:ellipsis}
+.item .val{width:100%;font-size:14px;font-weight:820;letter-spacing:-.45px;padding-left:2px;padding-right:2px}
+.chk{width:40px;height:40px;border-radius:13px;font-size:17px}
+.del{width:22px;height:38px;font-size:20px}
+body.locked .item{grid-template-columns:42px minmax(0,1fr) 100px 42px}
+body.locked .item .desc{padding-left:2px}
+body.locked .item .val{padding-right:1px}
+.addLine{margin:5px 12px 12px;padding:10px 12px;border-radius:12px;background:#F7F8F9}
+.cat.resumo{padding:0 0 6px}
+.cat.resumo h2{margin:0;padding:15px 16px;border-bottom:1px solid rgba(25,32,40,.055)}
+.resline{padding:11px 16px;font-size:13px}
+.addBig{margin:2px 0 22px;border:1px solid rgba(22,121,76,.11);background:rgba(255,255,255,.9)}
+.bottom{
+  left:50%;right:auto;width:calc(100% - 22px);max-width:590px;transform:translateX(-50%);
+  bottom:calc(9px + env(safe-area-inset-bottom));padding:6px;border-radius:22px;gap:6px;
+}
+.bottom button{min-height:52px;border-radius:16px;padding:8px 13px;display:flex;align-items:center;justify-content:center;gap:7px}
+.bottom .wa{flex:1;font-size:14.5px}
+.bottom .menuBtn{flex:0 0 92px;color:#48515A;background:#F0F2F4}
+.bottomIcon{font-size:20px;line-height:1;font-weight:500}
+.sheet{padding-top:34px;border-radius:30px 30px 0 0}
+.sheet h3{font-size:23px;letter-spacing:-.65px;margin-bottom:18px}
+.sheet .close{right:14px;top:14px;background:#EEF1F3}
+.lbl{margin-top:15px;font-size:10px;letter-spacing:.65px;text-transform:uppercase}
+.field,textarea.field{border-radius:16px;background:#F5F7F8;border-color:rgba(25,32,40,.07)}
+.catpick{padding:5px;border-radius:16px}
+.catpick button{min-height:44px;border-radius:12px;font-size:11px}
+.menu button:not(.close){min-height:54px;border-radius:16px;margin-bottom:8px;padding:16px 44px 16px 15px;background:#F5F7F8;font-size:14px}
+.histItem{border-radius:20px;padding:15px;margin-bottom:11px}
+.histItem .top{align-items:flex-start}
+.histItem .tt{font-size:17px;letter-spacing:-.45px}
+.histItem .acts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.mini{padding:9px 5px;border-radius:11px}
+#toast{border-radius:18px}
+@keyframes despCardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media (max-width:390px){
+  .suiteTitle{font-size:26px}.syncpill{max-width:108px;overflow:hidden;text-overflow:ellipsis}
+  #monthLabel{font-size:20px;width:55vw}.tot .vl{font-size:19px}.tot.totalMaster .vl{font-size:25px}
+  .item{grid-template-columns:38px minmax(0,1fr) 88px 38px 20px;gap:5px;padding-left:10px;padding-right:10px}
+  body.locked .item{grid-template-columns:38px minmax(0,1fr) 88px 38px}
+  .item .catbtn,.chk{width:38px;height:38px}.item .desc{font-size:13px}.item .val{font-size:13px}
+  .bottom .menuBtn{flex-basis:82px}
+}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="hrow">
-    <div class="htitle">DESPESAS – <input id="monthLabel" placeholder="mês/ano" maxlength="14"></div>
-    <span style="display:flex;align-items:center;gap:8px"><span class="lockpill" id="lockPill" onclick="toggleLock()">🔒</span><span class="syncpill" id="syncPill" onclick="openSync()">⚪ sem sync</span></span>
+  <div class="suiteHead">
+    <div class="suiteBrand">
+      <div class="suiteEyebrow">GUIMASCAR · FINANCEIRO</div>
+      <div class="suiteTitle">Despesas</div>
+    </div>
+    <div class="headActions">
+      <span class="lockpill" id="lockPill" onclick="toggleLock()">🔒</span>
+      <span class="syncpill" id="syncPill" onclick="openSync()">⚪ sem sync</span>
+    </div>
   </div>
-  <div id="verTag"></div>
+  <div class="monthCard">
+    <div class="monthMeta">
+      <span class="monthLabelTxt">COMPETÊNCIA</span>
+      <div id="verTag"></div>
+    </div>
+    <input id="monthLabel" placeholder="mês/ano" maxlength="14">
+  </div>
   <div class="totais">
-    <div class="tot" id="cardAll" onclick="setFilter('all')"><div class="lb">Total do mês</div><div class="vl" id="totAll">R$0,00</div></div>
+    <div class="tot totalMaster" id="cardAll" onclick="setFilter('all')"><div class="lb">Total do mês</div><div class="vl" id="totAll">R$0,00</div></div>
     <div class="tot g" id="cardPaid" onclick="setFilter('paid')"><div class="lb">Pago</div><div class="vl" id="totPaid">R$0,00</div></div>
     <div class="tot r" id="cardPend" onclick="setFilter('pend')"><div class="lb">A pagar</div><div class="vl" id="totPend">R$0,00</div></div>
   </div>
@@ -654,8 +796,8 @@ textarea.field{min-height:110px;font-family:var(--mono);font-size:12.5px}
 <main id="list"></main>
 
 <div class="bottom">
-  <button class="wa" onclick="openAdd(null,null,'')">＋ Nova despesa</button>
-  <button onclick="openMenu()">☰ Menu</button>
+  <button class="wa" onclick="openAdd(null,null,'')"><span class="bottomIcon">＋</span><span>Nova despesa</span></button>
+  <button class="menuBtn" onclick="openMenu()"><span class="bottomIcon">☰</span><span>Menu</span></button>
 </div>
 
 <!-- Adicionar / editar despesa -->
@@ -752,7 +894,7 @@ textarea.field{min-height:110px;font-family:var(--mono);font-size:12.5px}
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=10; var APP_DATE='23/08/2026';
+var APP_VER=11; var APP_DATE='23/08/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -963,7 +1105,7 @@ function render(){
   if(quitado) linha='<span class="okTag">✓ tudo pago</span>';
   else if(subPago>0) linha='<span class="mPago">Pago '+fmt(subPago)+'</span> · <span class="mFalta">Falta '+fmt(subPend)+'</span>';
   else linha='<span class="mFalta">Falta '+fmt(subPend)+'</span>';
-  html+='<div class="cat'+(quitado?' done':'')+'"><h2><span>📅 DIA '+(d||'--')+'</span>'
+  html+='<div class="cat'+(quitado?' done':'')+'" data-day="'+esc(d)+'"><h2><span>📅 DIA '+(d||'--')+'</span>'
     +'<span class="sub">'+fmt(sub)+'</span></h2>'
     +'<div class="dayline">'+linha+'</div>';
   lista.forEach(function(it){
@@ -1004,6 +1146,37 @@ function updateTotals(){
  document.getElementById('totPaid').textContent=fmt(t.paid);
  document.getElementById('totPend').textContent=fmt(t.pend);
 }
+function updateLiveDerived(){
+ /* Atualiza os totais derivados sem reconstruir a lista: mantém foco/cursor no iPhone. */
+ updateTotals();
+ try{
+  var cards=document.querySelectorAll('.cat[data-day]');
+  for(var i=0;i<cards.length;i++){
+   var card=cards[i], d=card.getAttribute('data-day')||'';
+   var todas=itens().filter(function(it){return normDia(it.day)===d});
+   var sub=0,subPend=0;
+   todas.forEach(function(it){sub+=it.v;if(it.s!=='paid')subPend+=it.v});
+   var subPago=sub-subPend, quitado=(subPend===0);
+   var vl=card.querySelector('h2 .sub'); if(vl)vl.textContent=fmt(sub);
+   var dl=card.querySelector('.dayline');
+   if(dl){
+    if(quitado) dl.innerHTML='<span class="okTag">✓ tudo pago</span>';
+    else if(subPago>0) dl.innerHTML='<span class="mPago">Pago '+fmt(subPago)+'</span> · <span class="mFalta">Falta '+fmt(subPend)+'</span>';
+    else dl.innerHTML='<span class="mFalta">Falta '+fmt(subPend)+'</span>';
+   }
+   card.classList.toggle('done',quitado);
+  }
+  /* O resumo por tipo também deriva dos mesmos valores; pode ser recriado isoladamente
+     sem tocar na linha/input que o usuário está editando. */
+  var resumo=document.querySelector('#list .cat.resumo'), html=resumoCats();
+  if(resumo){
+   if(html) resumo.outerHTML=html; else resumo.remove();
+  }else if(html){
+   var add=document.querySelector('#list .addBig');
+   if(add) add.insertAdjacentHTML('beforebegin',html);
+  }
+ }catch(e){}
+}
 function updateFilterUI(){
  ['all','paid','pend'].forEach(function(f){
   var id=f==='all'?'cardAll':(f==='paid'?'cardPaid':'cardPend');
@@ -1035,7 +1208,7 @@ function rawVal2(id){var it=find(id);return it?rawVal(it.v):''}
 function blurVal(id,el){var it=find(id);if(it)el.value=it.v?fmt(it.v):''}
 function setDay(id,v){var it=find(id);if(!it)return;it.day=normDia(v);it.at=agora();save();updateTotals()}
 function setDesc(id,v){var it=find(id);if(!it)return;it.desc=v;it.at=agora();save()}
-function setVal(id,v){var it=find(id);if(!it)return;it.v=parseVal(v);it.at=agora();save();updateTotals()}
+function setVal(id,v){var it=find(id);if(!it)return;it.v=parseVal(v);it.at=agora();save();updateLiveDerived()}
 function tgl(id){
  if(travado())return;var it=find(id);if(!it)return;it.s=(it.s==='paid')?'pend':'paid';it.at=agora();save();render()}
 function cycleCat(id){
