@@ -995,7 +995,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=13; var APP_DATE='24/08/2026';
+var APP_VER=17; var APP_DATE='24/08/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1025,7 +1025,7 @@ var SEGUROS_CARRO=[
  {d:'20',n:'Seguro Sandero - PYO4A55',v:18878},
  {d:'20',n:'Seguro Hilux - DVS7C98',v:55470}
 ];
-var CATS=[{k:'seguro',n:'SEGUROS',ic:'🛡'},{k:'cartao',n:'CARTÕES',ic:'💳'},{k:'outros',n:'OUTROS',ic:'📌'},{k:'pix',n:'PIX',ic:'💸'}];
+var CATS=[{k:'fixa',n:'FIXAS',ic:'📌'},{k:'seguro',n:'SEGUROS',ic:'🛡'},{k:'cartao',n:'CARTÕES',ic:'💳'},{k:'outros',n:'OUTROS',ic:'🧾'},{k:'pix',n:'PIX',ic:'💸'}];
 var state=null, filter='all', askCb=null, EH_ID=null, AD_ID=null, AD_CAT='seguro';
 var LOCK=true; // proteção: o app SEMPRE abre travado
 function toggleLock(){
@@ -1067,7 +1067,7 @@ function parseVal(str){
 }
 function rawVal(v){ return v?(v/100).toFixed(2).replace('.',','):'' }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-function catOf(k){for(var i=0;i<CATS.length;i++){if(CATS[i].k===k)return CATS[i]}return CATS[2]}
+function catOf(k){for(var i=0;i<CATS.length;i++){if(CATS[i].k===k)return CATS[i]}return CATS[3]}
 function toast(msg){
  var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
  setTimeout(function(){t.classList.remove('show')},2200);
@@ -1120,65 +1120,85 @@ function stamp(){
  return ('0'+n.getDate()).slice(-2)+'/'+('0'+(n.getMonth()+1)).slice(-2)+'/'+n.getFullYear();
 }
 
+
+/* ===== INTEGRIDADE DISTRIBUÍDA v14 =====
+   Despesas atuais e meses fechados têm versão própria. Exclusão usa lápide permanente;
+   fechamento marca os itens do mês antigo como encerrados e cria novos ids para o mês
+   seguinte, impedindo que um iPhone atrasado misture agosto dentro de setembro. */
+function _dAg(){return Date.now()}
+function _dMark(o){if(!o)return;o.at=_dAg();o.by=DEV}
+function _dNewer(a,b){if(!a)return b;if(!b)return a;if(!!a.del!==!!b.del)return a.del?a:b;var aa=Number(a.at)||0,bb=Number(b.at)||0;if(aa!==bb)return bb>aa?b:a;var ab=String(a.by||''),bbb=String(b.by||'');if(ab!==bbb)return bbb>ab?b:a;return JSON.stringify(b)>JSON.stringify(a)?b:a}
+function _dMergeList(A,B,keyFn,merger){var m={};function add(x){if(!x)return;var k=(keyFn?keyFn(x):x.id)||('anon:'+JSON.stringify(x));m[k]=m[k]?(merger||_dNewer)(m[k],x):x}toArr(A).forEach(add);toArr(B).forEach(add);return Object.keys(m).sort().map(function(k){return m[k]})}
+function _mesKey(m){return 'mes:'+String(m||'').trim().toUpperCase()}
+function _mesOrdem(m){var p=String(m||'').toUpperCase().split('/'),i=mIndex(p[0]),y=parseInt(p[1],10);return i>=0&&!isNaN(y)?y*12+i:0}
+function _histMerge(a,b){if(!a)return b;if(!b)return a;if(a.del||b.del)return _dNewer(a,b);var base=_dNewer(a,b),o={};for(var k in base)if(Object.prototype.hasOwnProperty.call(base,k))o[k]=base[k];o.periodKey=a.periodKey||b.periodKey||_mesKey(o.month);o.items=_dMergeList(a.items,b.items);var ativos=toArr(o.items).filter(function(x){return x&&!x.del});var tt=totals(ativos);o.paid=tt.paid;o.pend=tt.pend;o.all=tt.all;o.text=buildText(ativos,o.month);return o}
+function _dMergeHistoryList(A,B){
+ /* Id resolve edição/exclusão do mesmo fechamento; periodKey resolve dois fechamentos
+    concorrentes do mesmo mês que nasceram com ids diferentes. */
+ var porId=_dMergeList(A,B,null,_histMerge),m={};porId.forEach(function(h){if(!h)return;var k=h.periodKey||_mesKey(h.month)||('id:'+h.id);m[k]=m[k]?_histMerge(m[k],h):h});return Object.keys(m).sort().map(function(k){return m[k]})
+}
+function _dMergeState(a,b){
+ a=norm(a||{});b=norm(b||{});var reset=Math.max(Number(a.resetAt)||0,Number(b.resetAt)||0);
+ /* Importar backup = novo ponto de origem. Registros/túmulos anteriores ao reset são
+    cortados ANTES do merge; assim uma lápide antiga não consegue apagar o item restaurado. */
+ function clip(s){if(!reset)return s;s.items=toArr(s.items).filter(function(x){return (Number(x&&x.at)||0)>=reset});s.history=toArr(s.history).filter(function(x){return (Number(x&&x.at)||0)>=reset});return s}
+ a=clip(a);b=clip(b);var o={},am=Number(a.monthAt)||0,bm=Number(b.monthAt)||0,oa=_mesOrdem(a.month),ob=_mesOrdem(b.month);
+ /* mês corrente nunca regride em sincronização normal; timestamp/device só desempata o mesmo mês */
+ if(ob>oa||(ob===oa&&(bm>am||(bm===am&&String(b.dev||'')>String(a.dev||''))))){o.month=b.month;o.monthAt=bm}else{o.month=a.month;o.monthAt=am}
+ o.items=_dMergeList(a.items,b.items);o.history=_dMergeHistoryList(a.history,b.history);o.migs=Object.assign({},a.migs||{},b.migs||{});o.resetAt=reset;if(reset){o.items=o.items.filter(function(x){return (Number(x&&x.at)||0)>=reset});o.history=o.history.filter(function(x){return (Number(x&&x.at)||0)>=reset})}o.rev=Math.max(Number(a.rev)||0,Number(b.rev)||0);o.dev=(Number(b.rev)||0)>(Number(a.rev)||0)?b.dev:((Number(b.rev)||0)<(Number(a.rev)||0)?a.dev:(String(b.dev||'')>String(a.dev||'')?b.dev:a.dev));return norm(o)
+}
+
 /* ---------- estado ---------- */
 function ehSeguroMobiLUH(i){
  return !!(i&&i.cat==='seguro'&&String(i.desc||'').replace(/[\s-]/g,'').toUpperCase().indexOf('LUH7G30')>-1);
 }
 function corrigirSeguroMobiLUH(st){
- /* Invariante v13: LUH-7G30 pode existir UMA única vez e sempre por R$ 200,88.
-    Duplicatas não são simplesmente removidas: viram lápides (del=true + at),
-    para que um iPhone/nuvem antigo não consiga ressuscitá-las no merge por id. */
- st=st||state;if(!st)return false;
- st.items=toArr(st.items);var agoraFix=Date.now(), ativos=[], todos=[];
- st.items.forEach(function(i){if(ehSeguroMobiLUH(i)){todos.push(i);if(!i.del)ativos.push(i)}});
- var keep=null;
- /* Prioridade absoluta para a linha correta de R$ 200,88 já existente. */
- ativos.forEach(function(i){
-  if(i.v===20088&&(!keep||keep.v!==20088||(i.at||0)>(keep.at||0)))keep=i;
- });
- if(!keep&&ativos.length){
-  keep=ativos.slice().sort(function(a,b){return (b.at||0)-(a.at||0)})[0];
- }
+ st=st||state;if(!st)return false;st.items=toArr(st.items);var agoraFix=Date.now(),mesAtual=normMonth(st.month||thisMonth()),ativos=[],todos=[];
+ st.items.forEach(function(i){if(ehSeguroMobiLUH(i)&&normMonth(i.mes||mesAtual)===mesAtual){todos.push(i);if(!i.del)ativos.push(i)}});
+ /* O erro real estava em AGOSTO/2026: 200,88 + duas cópias de 204,00. Em qualquer
+    mês mantemos só uma linha. Em meses futuros o valor vem da despesa fixa carregada
+    do mês anterior e continua totalmente editável; não forçamos R$200,88 fora de agosto. */
+ var mesBug=(mesAtual==='AGOSTO/2026'),keep=null;
+ if(mesBug)ativos.forEach(function(i){if(i.v===20088&&(!keep||(i.at||0)>(keep.at||0)))keep=i});
+ if(!keep&&ativos.length)keep=ativos.slice().sort(function(a,b){var aa=Number(a.at)||0,bb=Number(b.at)||0;if(aa!==bb)return bb-aa;return String(b.id||'').localeCompare(String(a.id||''))})[0];
  var mudou=false;
- if(!keep){
-  keep={id:'seg_luh7g30',day:'20',desc:'Seguro Mobi - LUH7G30',v:20088,cat:'seguro',s:'pend',at:agoraFix,del:false};
-  st.items.push(keep);todos.push(keep);mudou=true;
+ if(!keep&&mesBug){keep={id:'seg_luh7g30_AGOSTO2026',mes:mesAtual,day:'20',desc:'Seguro Mobi - LUH7G30',v:20088,cat:'seguro',s:'pend',at:agoraFix,by:DEV,del:false};st.items.push(keep);todos.push(keep);mudou=true}
+ if(keep){
+  if(keep.mes!==mesAtual||keep.day!=='20'||keep.desc!=='Seguro Mobi - LUH7G30'||keep.cat!=='seguro'||keep.del||(mesBug&&keep.v!==20088)){
+   keep.mes=mesAtual;keep.day='20';keep.desc='Seguro Mobi - LUH7G30';keep.cat='seguro';keep.del=false;if(mesBug)keep.v=20088;keep.at=agoraFix;keep.by=DEV;mudou=true
+  }
+  todos.forEach(function(i){if(i===keep)return;if(!i.del){i.del=true;i.at=agoraFix;i.by=DEV;mudou=true}});
  }
- if(keep.day!=='20'||keep.desc!=='Seguro Mobi - LUH7G30'||keep.v!==20088||keep.cat!=='seguro'||keep.del){
-  keep.day='20';keep.desc='Seguro Mobi - LUH7G30';keep.v=20088;keep.cat='seguro';keep.del=false;keep.at=agoraFix;mudou=true;
- }
- todos.forEach(function(i){
-  if(i===keep)return;
-  if(!i.del){i.del=true;i.at=agoraFix;mudou=true}
- });
  return mudou;
 }
-function migrarSeguros(){
- /* troca as linhas de seguro agrupadas pelo detalhe carro a carro — uma única vez */
- try{
-  if(state.migs&&state.migs.seg1){
-   if(corrigirSeguroMobiLUH(state))save();
-   return;
-  }
- }catch(e){}
- var antigos=state.items.filter(function(i){
-  return i.cat==='seguro'&&/todos os carros/i.test(i.desc||'');
- });
- if(antigos.length){
-  var pagos={};
-  antigos.forEach(function(i){ pagos[String(i.day)]=(i.s==='paid') });
-  state.items=state.items.filter(function(i){ return antigos.indexOf(i)<0 });
-  SEGUROS_CARRO.forEach(function(s){
-   state.items.push({id:uid(),day:s.d,desc:s.n,v:s.v,cat:'seguro',
-    s:(pagos[s.d]?'paid':'pend'),at:agora()});
-  });
-  render();
-  toast('🛡 Seguros detalhados por carro');
- }
- corrigirSeguroMobiLUH(state);
- state.migs=state.migs||{}; state.migs.seg1=true; save();
+function sanearSegurosAgrupados(st){
+ st=st||state;if(!st)return false;var mudou=false,ts=_dAg();toArr(st.items).forEach(function(i){if(i&&!i.del&&i.cat==='seguro'&&/todos os carros/i.test(i.desc||'')){i.del=true;i.at=ts;i.by=DEV;mudou=true}});return mudou
 }
-function blank(){return {month:thisMonth(),rev:0,dev:'',items:[],history:[]}}
+function migrarSeguros(){
+ /* migração idempotente: linhas antigas agrupadas viram tombstones, nunca remoção física.
+    Só cria a lista detalhada quando a base realmente continha o formato agrupado antigo. */
+ var tinhaAgrupado=toArr(state.items).some(function(i){return i&&!i.del&&i.cat==='seguro'&&/todos os carros/i.test(i.desc||'')}),mudou=sanearSegurosAgrupados(state),ja=state.migs&&state.migs.seg1;
+ if(!ja&&tinhaAgrupado){
+  SEGUROS_CARRO.forEach(function(sg){var existe=toArr(state.items).some(function(i){return i&&!i.del&&i.cat==='seguro'&&normDescSeguro(i.desc)===normDescSeguro(sg.n)});if(!existe){state.items.push({id:'segdet_'+String(sg.n).replace(/[^A-Za-z0-9]/g,''),mes:state.month,day:sg.d,desc:sg.n,v:sg.v,cat:'seguro',s:'pend',at:agora(),by:DEV,del:false});mudou=true}});
+ }
+ if(!ja){state.migs=state.migs||{};state.migs.seg1=true;mudou=true}
+ if(corrigirSeguroMobiLUH(state))mudou=true;
+ if(mudou){save();render();if(tinhaAgrupado)toast('🛡 Seguros conferidos')}
+}
+function normDescSeguro(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
+
+function migrarFixas17(st){
+ /* Migração conservadora: só reconhece como FIXA descrições inequívocas que o usuário
+    já definiu como recorrentes. Só sela a migração quando já existem dados carregados,
+    evitando marcar como concluída antes do primeiro snapshot da nuvem. */
+ st=st||state;if(!st)return false;st.migs=st.migs&&typeof st.migs==='object'?st.migs:{};
+ if(st.migs.fixas17)return false;var lista=toArr(st.items);if(!lista.length)return false;
+ var mudou=false,ts=_dAg(),re=/(PRESTA[CÇ][AÃ]O.*TERRENO|TERRENO.*(PRESTA[CÇ][AÃ]O|PARCELA)|INTERNET|PLANO\s+DE\s+SA[UÚ]DE|UNIMED|AMIL|BRADESCO\s+SA[UÚ]DE)/i;
+ lista.forEach(function(i){if(i&&!i.del&&i.cat==='outros'&&re.test(String(i.desc||''))){i.cat='fixa';i.at=ts;i.by=DEV;mudou=true}});
+ st.migs.fixas17=true;return true;
+}
+
+function blank(){return {month:thisMonth(),monthAt:0,resetAt:0,rev:0,dev:'',items:[],history:[]}}
 function load(){
  try{
   var raw=localStorage.getItem(KEY);
@@ -1335,31 +1355,23 @@ function normDia(d){
  if(s==='00') s='';
  return s;
 }
-function itens(){return toArr(state.items).filter(function(i){return i&&!i.del})}
+function itens(){var m=normMonth(state.month||thisMonth());return toArr(state.items).filter(function(i){return i&&!i.del&&normMonth(i.mes||m)===m})}
 function find(id){return toArr(state.items).filter(function(it){return it.id===id})[0]}
 function rawVal2(id){var it=find(id);return it?rawVal(it.v):''}
 function blurVal(id,el){var it=find(id);if(it)el.value=it.v?fmt(it.v):''}
-function setDay(id,v){var it=find(id);if(!it)return;it.day=normDia(v);it.at=agora();save();updateTotals()}
-function setDesc(id,v){var it=find(id);if(!it)return;it.desc=v;it.at=agora();save()}
-function setVal(id,v){var it=find(id);if(!it)return;it.v=parseVal(v);it.at=agora();save();updateLiveDerived()}
-function tgl(id){
- if(travado())return;var it=find(id);if(!it)return;it.s=(it.s==='paid')?'pend':'paid';it.at=agora();save();render()}
+function setDay(id,v){var it=find(id);if(!it)return;it.day=normDia(v);it.at=agora();it.by=DEV;save();updateTotals()}
+function setDesc(id,v){var it=find(id);if(!it)return;it.desc=v;it.at=agora();it.by=DEV;save()}
+function setVal(id,v){var it=find(id);if(!it)return;it.v=parseVal(v);it.at=agora();it.by=DEV;save();updateLiveDerived()}
+function tgl(id){if(travado())return;var it=find(id);if(!it)return;it.s=(it.s==='paid')?'pend':'paid';it.at=agora();it.by=DEV;save();render()}
 function cycleCat(id){
  if(travado())return;
  var it=find(id);if(!it)return;
  var i=0;for(var j=0;j<CATS.length;j++){if(CATS[j].k===it.cat)i=j}
- it.cat=CATS[(i+1)%CATS.length].k; it.at=agora();
+ it.cat=CATS[(i+1)%CATS.length].k; it.at=agora(); it.by=DEV;
  save();render();
  toast('Movida para '+catOf(it.cat).n);
 }
-function delItem(id){
- if(travado())return;
- var it=find(id);if(!it)return;
- ask('Excluir despesa',(it.desc||'(sem descrição)')+' — '+fmt(it.v)+'\n\nEssa despesa some do mês atual. O histórico dos meses fechados não muda.','Excluir',function(){
-  toArr(state.items).forEach(function(x){ if(x.id===id){x.del=true;x.at=agora()} });
-  save();render();toast('Despesa excluída');
- });
-}
+function delItem(id){if(travado())return;var it=find(id);if(!it)return;ask('Excluir despesa',(it.desc||'(sem descrição)')+' — '+fmt(it.v)+'\n\nEssa despesa some do mês atual. O histórico dos meses fechados não muda.','Excluir',function(){it.del=true;it.at=agora();it.by=DEV;save();render();toast('Despesa excluída')})}
 function openAdd(id,cat,day){
  if(travado())return;
  AD_ID=id||null;
@@ -1384,9 +1396,9 @@ function saveAdd(){
  if(!desc){toast('⚠️ Escreva a descrição');return}
  if(AD_ID){
   var it=find(AD_ID);
-  if(it){it.day=day;it.desc=desc;it.v=v;it.cat=AD_CAT;it.at=agora()}
+  if(it){it.day=day;it.desc=desc;it.v=v;it.cat=AD_CAT;it.at=agora();it.by=DEV}
  }else{
-  state.items.push({id:uid(),day:day,desc:desc,v:v,cat:AD_CAT,s:'pend',at:agora()});
+  state.items.push({id:uid(),mes:state.month,day:day,desc:desc,v:v,cat:AD_CAT,s:'pend',at:agora(),by:DEV,del:false});
  }
  save();
  document.getElementById('ovAdd').classList.remove('open');
@@ -1434,36 +1446,33 @@ function legacyCopy(txt,okMsg){
 
 /* ---------- fechar mês ---------- */
 function closeMonth(){
- if(travado())return;
- if(!itens().length){toast('⚠️ Nenhuma despesa neste mês');return}
- var t=totals(itens());
- var abertas=itens().filter(function(it){return it.s!=='paid'}).length;
- var nPix=itens().filter(function(it){return it.cat==='pix'}).length;
- ask('Fechar '+state.month,
-  'Total: '+fmt(t.all)+'\nPago: '+fmt(t.paid)+'\nFicou em aberto: '+fmt(t.pend)+(abertas?' ('+abertas+' conta'+(abertas>1?'s':'')+')':'')
-  +'\n\nO mês vai para o histórico e abre '+nextMonth(state.month)+' com a MESMA lista de despesas fixas, com os valores em branco e tudo como não pago.'
-  +(nPix?'\n\n💸 Os '+nPix+' PIX deste mês NÃO são levados (ficam guardados só no histórico).':''),
-  'Fechar mês',
-  function(){
-   state.history.unshift({
-    id:uid(), month:state.month, closedAt:stamp(),
-    paid:t.paid, pend:t.pend, all:t.all,
-    text:buildText(itens(),state.month),
-    items:JSON.parse(JSON.stringify(itens()))
-   });
-   state.items=itens().filter(function(it){return it.cat!=='pix'}).map(function(it){
-    return {id:uid(),day:it.day,desc:it.desc,v:0,cat:it.cat,s:'pend',at:agora()};
-   });
-   state.month=nextMonth(state.month);
-   filter='all';
-   save();render();
-   toast('Mês fechado ✓ '+state.month+' aberto com as fixas'+(nPix?' (PIX não vieram)':''));
- });
+ if(travado())return;if(!itens().length){toast('⚠️ Nenhuma despesa neste mês');return}
+ var atuais=itens(),tt=totals(atuais),abertas=atuais.filter(function(it){return it.s!=='paid'}).length;
+ var nFix=atuais.filter(function(it){return it.cat==='fixa'||it.cat==='seguro'}).length,
+     nCart=atuais.filter(function(it){return it.cat==='cartao'}).length,
+     nPix=atuais.filter(function(it){return it.cat==='pix'}).length,
+     nAv=atuais.filter(function(it){return it.cat==='outros'}).length;
+ ask('Fechar '+state.month,'Total: '+fmt(tt.all)+'\nPago: '+fmt(tt.paid)+'\nFicou em aberto: '+fmt(tt.pend)+(abertas?' ('+abertas+' conta'+(abertas>1?'s':'')+')':'')+
+  '\n\nNo próximo mês:'+
+  (nFix?'\n• '+nFix+' fixa'+(nFix>1?'s':'')+'/seguro'+(nFix>1?'s':'')+' continuam com o MESMO valor (editável).':'')+
+  (nCart?'\n• '+nCart+' cartão'+(nCart>1?'ões':'')+' continua'+(nCart>1?'m':'')+' com valor R$0,00 para a nova fatura.':'')+
+  ((nPix+nAv)?'\n• PIX e gastos avulsos ficam somente neste mês e NÃO são levados.':''),'Fechar mês',function(){
+  var ts=_dAg(),mesVelho=state.month,novoMes=nextMonth(mesVelho),snap=JSON.parse(JSON.stringify(atuais));
+  state.history.unshift({id:uid(),periodKey:_mesKey(mesVelho),month:mesVelho,closedAt:stamp(),paid:tt.paid,pend:tt.pend,all:tt.all,text:buildText(snap,mesVelho),items:snap,at:ts,by:DEV,del:false});
+  atuais.forEach(function(it){it.del=true;it.at=ts;it.by=DEV});
+  atuais.forEach(function(it){
+   var leva=(it.cat==='fixa'||it.cat==='seguro'||it.cat==='cartao');if(!leva)return;
+   var carryId='carry_'+String(it.id||'rec').replace(/[^A-Za-z0-9_-]/g,'')+'_'+String(novoMes||'').replace(/[^A-Za-z0-9]/g,'');
+   var novoValor=(it.cat==='cartao'?0:it.v);
+   state.items.push({id:carryId,mes:novoMes,day:it.day,desc:it.desc,v:novoValor,cat:it.cat,s:'pend',at:ts,by:DEV,del:false});
+  });
+  state.month=novoMes;state.monthAt=ts;filter='all';corrigirSeguroMobiLUH(state);save();render();toast('Mês fechado ✓ '+state.month+' aberto com fixas e cartões');
+ })
 }
 
 /* ---------- histórico ---------- */
 function openHistory(){
- var el=document.getElementById('histList'), h=state.history;
+ var el=document.getElementById('histList'), h=toArr(state.history).filter(function(x){return x&&!x.del}).slice().sort(function(a,b){return (Number(b.at)||0)-(Number(a.at)||0)});
  if(!h.length){el.innerHTML='<div class="empty">Nenhum mês fechado ainda.<br>Use "Fechar mês" no menu.</div>'}
  else{
   el.innerHTML=h.map(function(m){
@@ -1482,19 +1491,12 @@ function openHistory(){
  document.getElementById('ovHist').classList.add('open');
 }
 function copyHist(id){
- var m=state.history.filter(function(x){return x.id===id})[0]; if(!m)return;
+ var m=toArr(state.history).filter(function(x){return x.id===id&&!x.del})[0]; if(!m)return;
  copyText(m.text,'Mês '+m.month+' copiado ✓');
 }
-function delHist(id){
- if(travado())return;
- var m=state.history.filter(function(x){return x.id===id})[0]; if(!m)return;
- ask('Excluir do histórico','Excluir o mês '+m.month+' ('+fmt(m.all)+') do histórico? Isso não pode ser desfeito.','Excluir',function(){
-  state.history=state.history.filter(function(x){return x.id!==id});
-  save();openHistory();toast('Mês excluído do histórico');
- });
-}
+function delHist(id){if(travado())return;var m=toArr(state.history).filter(function(x){return x.id===id&&!x.del})[0];if(!m)return;ask('Excluir do histórico','Excluir o mês '+m.month+' ('+fmt(m.all)+') do histórico? Isso não pode ser desfeito.','Excluir',function(){m.del=true;m.at=agora();m.by=DEV;save();openHistory();toast('Mês excluído do histórico')})}
 function openHistEdit(id){
- var m=state.history.filter(function(x){return x.id===id})[0]; if(!m)return;
+ var m=toArr(state.history).filter(function(x){return x.id===id&&!x.del})[0]; if(!m)return;
  EH_ID=id;
  document.getElementById('ehInfo').textContent='Mês de '+fmt(m.all)+' — corrigir as datas não altera nenhum valor.';
  document.getElementById('ehMonth').value=m.month||'';
@@ -1503,12 +1505,12 @@ function openHistEdit(id){
 }
 function saveHistEdit(){
  if(travado())return;
- var m=state.history.filter(function(x){return x.id===EH_ID})[0]; if(!m)return;
+ var m=toArr(state.history).filter(function(x){return x.id===EH_ID&&!x.del})[0]; if(!m)return;
  var nm=(document.getElementById('ehMonth').value||'').trim();
  var nc=(document.getElementById('ehClosed').value||'').trim();
  if(!nm){toast('⚠️ Informe o mês');return}
  var old=m.month;
- m.month=nm; m.closedAt=nc;
+ m.month=nm; m.closedAt=nc; m.periodKey=_mesKey(nm); m.at=agora(); m.by=DEV;
  if(typeof m.text==='string'&&m.text){
   m.text=m.text.replace('*DESPESAS - '+old+'*','*DESPESAS - '+nm+'*');
  }
@@ -1520,7 +1522,7 @@ function saveHistEdit(){
 
 /* ---------- backup ---------- */
 function exportBackup(){
- var data=JSON.stringify({month:state.month,items:itens(),history:state.history},null,1);
+ var data=JSON.stringify({month:state.month,items:itens(),history:toArr(state.history).filter(function(x){return x&&!x.del})},null,1);
  var blob=new Blob([data],{type:'application/json'});
  var a=document.createElement('a');
  a.href=URL.createObjectURL(blob);
@@ -1540,7 +1542,7 @@ function importBackup(input){
     'Os dados atuais serão substituídos pelos do arquivo ('+toArr(data.items).length+' despesas, '+toArr(data.history).length+' meses no histórico).',
     'Importar',
     function(){
-     state=norm({month:data.month,items:data.items,history:data.history});
+     var ts=_dAg();state=norm({month:data.month,monthAt:ts,resetAt:ts,items:data.items,history:data.history});state.items.forEach(function(i){i.mes=i.mes||state.month;i.at=ts;i.by=DEV;i.del=false});state.history.forEach(function(h){h.periodKey=h.periodKey||_mesKey(h.month);h.at=ts;h.by=DEV;h.del=false});
      corrigirSeguroMobiLUH(state);
      save();render();toast('Backup importado ✓');
    });
@@ -1552,7 +1554,11 @@ function importBackup(input){
 
 /* ================= SINCRONIZAÇÃO (Firebase Realtime Database) ================= */
 var DEV=(function(){try{var d=localStorage.getItem('guimas_dev');if(!d){d=uid()+uid();localStorage.setItem('guimas_dev',d)}return d}catch(e){return uid()}})();
-var SYNC={ref:null,online:false,pendingPush:false,pendingRemote:null,pushTimer:null,started:false};
+var SYNC={ref:null,online:false,pendingPush:false,pendingRemote:null,pushTimer:null,started:false,gotRemote:false,lastToastAt:0};
+function _dCanonSync(x,root){if(Array.isArray(x)){var a=x.map(function(v){return _dCanonSync(v,false)});a.sort(function(u,v){var A=JSON.stringify(u),B=JSON.stringify(v);return A<B?-1:(A>B?1:0)});return a}if(x&&typeof x==='object'){var o={};Object.keys(x).sort().forEach(function(k){if(root&&(k==='rev'||k==='dev'))return;o[k]=_dCanonSync(x[k],false)});return o}return x}
+function _dSyncSig(x){return JSON.stringify(_dCanonSync(x||{},true))}
+function _dSyncIgual(a,b){return _dSyncSig(a)===_dSyncSig(b)}
+function _dToastSync(){var n=Date.now();if(n-SYNC.lastToastAt<3000)return;SYNC.lastToastAt=n;toast('🔄 Sincronização atualizada')}
 function touch(){state.rev=Date.now();state.dev=DEV}
 function toArr(x){
  if(Array.isArray(x)) return x;
@@ -1560,19 +1566,9 @@ function toArr(x){
  return [];
 }
 function norm(s){
- if(!s||typeof s!=='object') s={};
- var o={migs:(s.migs||null),month:normMonth(typeof s.month==='string'&&s.month?s.month:thisMonth()),rev:s.rev||0,dev:s.dev||'',items:[],history:[]};
- toArr(s.items).forEach(function(it){ if(!it) return;
-  o.items.push({id:it.id||uid(),day:normDia(it.day),
-   desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),
-   cat:(it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',
-   s:(it.s==='paid'?'paid':'pend'),at:it.at||0,del:!!it.del});
- });
- toArr(s.history).forEach(function(m){ if(!m) return;
-  o.history.push({id:m.id||uid(),month:normMonth(m.month||''),closedAt:m.closedAt||'',
-   paid:m.paid||0,pend:m.pend||0,all:m.all||0,text:m.text||'',items:toArr(m.items)});
- });
- return o;
+ if(!s||typeof s!=='object')s={};var mes=normMonth(typeof s.month==='string'&&s.month?s.month:thisMonth()),o={migs:(s.migs&&typeof s.migs==='object'?s.migs:{}),month:mes,monthAt:Number(s.monthAt)||0,resetAt:Number(s.resetAt)||0,rev:s.rev||0,dev:s.dev||'',items:[],history:[]};
+ toArr(s.items).forEach(function(it){if(!it)return;o.items.push({id:it.id||uid(),mes:normMonth(it.mes||mes),day:normDia(it.day),desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),cat:(it.cat==='fixa'||it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',s:(it.s==='paid'?'paid':'pend'),at:Number(it.at)||0,by:it.by||'',del:!!it.del})});
+ toArr(s.history).forEach(function(m){if(!m)return;o.history.push({id:m.id||uid(),periodKey:m.periodKey||_mesKey(m.month),month:normMonth(m.month||''),closedAt:m.closedAt||'',paid:m.paid||0,pend:m.pend||0,all:m.all||0,text:m.text||'',items:toArr(m.items),at:Number(m.at)||0,by:m.by||'',del:!!m.del})});return o;
 }
 function syncCfg(){try{return JSON.parse(localStorage.getItem('guimas_despesas_sync')||'null')}catch(e){return null}}
 function setPill(mode,txt){
@@ -1606,7 +1602,7 @@ function startSync(){
   return famHash(cfg.key);
  }).then(function(h){
   SYNC.ref=firebase.database().ref('familias/'+h+'/despesas');
-  SYNC.ref.on('value',function(snap){var v=snap.val();
+  SYNC.ref.on('value',function(snap){var v=snap.val();SYNC.gotRemote=true;
    if(!v){push();return}
    onRemote(v);
   },function(err){
@@ -1626,21 +1622,11 @@ function startSync(){
  });
 }
 function push(){
- if(!SYNC.ref){SYNC.pendingPush=true;return}
- SYNC.pendingPush=false;
- /* trava de segurança: se estou prestes a gravar pouquíssimos itens, primeiro
-    leio a nuvem uma vez; se lá houver muito mais, mesclo em vez de sobrescrever.
-    Impede que um aparelho recém-limpo zere as contas de todo mundo. */
- var meus=contaItens(state);
- if(meus<=1){
-  SYNC.ref.once('value').then(function(snap){
-   var v=snap.val();
-   if(v&&contaItens(v)>meus){ adopt(mesclar(v,state)); schedulePush(); return }
-   SYNC.ref.set(state).catch(function(){SYNC.pendingPush=true});
-  }).catch(function(){ SYNC.ref.set(state).catch(function(){SYNC.pendingPush=true}); });
-  return;
- }
- SYNC.ref.set(state).catch(function(){SYNC.pendingPush=true});
+ if(!SYNC.ref||!SYNC.gotRemote){SYNC.pendingPush=true;return}SYNC.pendingPush=false;var local=norm(state);
+ SYNC.ref.transaction(function(cur){var junto=cur?_dMergeState(cur,local):local;if(cur&&_dSyncIgual(junto,cur))return;junto.rev=Math.max(_dAg(),Number(local.rev)||0,Number(cur&&cur.rev)||0);junto.dev=DEV;return junto},function(err,committed,snap){
+  if(err){SYNC.pendingPush=true;return}if(!committed){SYNC.pendingPush=false;return}
+  if(snap&&snap.val()){var remoto=norm(snap.val()),atual=norm(state),junto=_dMergeState(remoto,atual),mudaLocal=!_dSyncIgual(junto,atual),precisa=!_dSyncIgual(junto,remoto);if(mudaLocal){state=junto;persist();if(!inputFocused())render()}if(precisa){touch();persist();schedulePush()}}
+ },false);
 }
 function schedulePush(){
  clearTimeout(SYNC.pushTimer);
@@ -1650,50 +1636,11 @@ function inputFocused(){
  var a=document.activeElement;
  return !!(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'));
 }
-function mesclarLista(rem,loc){
- var mapa={};
- function por(lista){
-  toArr(lista).forEach(function(it){
-   if(!it) return;
-   var k=it.id||('k:'+String(it.desc||'')+'|'+String(it.day||''));
-   var at=it.at||0, ja=mapa[k];
-   if(!ja||at>=(ja.at||0)) mapa[k]=it;
-  });
- }
- por(loc); por(rem);
- return Object.keys(mapa).map(function(k){return mapa[k]});
-}
-function mesclar(remoto,local){
- var o={};
- for(var k in remoto) if(Object.prototype.hasOwnProperty.call(remoto,k)) o[k]=remoto[k];
- o.items=mesclarLista(remoto.items,local.items);   /* nenhuma despesa some */
- if(remoto.history===undefined&&toArr(local.history).length) o.history=local.history;
- if(remoto.migs===undefined&&local.migs) o.migs=local.migs;
- return o;
-}
+function mesclarLista(rem,loc){return _dMergeList(rem,loc)}
+function mesclar(remoto,local){return _dMergeState(remoto,local)}
 function contaItens(x){ return toArr(x&&x.items).filter(function(i){return i&&!i.del}).length }
-function onRemote(v){
- if(!v){ push(); return }
- if(v.dev===DEV){ /* eco do meu próprio push: nada a fazer */ return }
- if(inputFocused()){ SYNC.pendingRemote=v; return }
- /* A UNIÃO SEMPRE RODA — nenhuma despesa some, venha de onde vier o rev.
-    mesclarLista junta por id e mantém a versão de maior 'at' de cada item,
-    então a ordem do merge não perde lançamento nem ressuscita apagado. */
- var juntos=mesclar(v,state);
- var fixMobi=corrigirSeguroMobiLUH(juntos);
- var antes=contaItens(state), depois=contaItens(juntos), naNuvem=contaItens(v);
- adopt(juntos);
- /* se o merge revelou itens que não estavam na nuvem (ou vice-versa), reenvia
-    o conjunto completo para os dois lados ficarem idênticos. A correção LUH
-    também volta à nuvem para impedir que uma cópia antiga recrie duplicatas. */
- if(depois>naNuvem || depois>antes || fixMobi) schedulePush();
-}
-function adopt(v){
- state=norm(v); SYNC.pendingRemote=null;
- persist();
- filter='all'; render();
- toast('🔄 Atualizado pelo outro aparelho');
-}
+function onRemote(v){if(!v)return;SYNC.gotRemote=true;var rem=norm(v);if(inputFocused()){SYNC.pendingRemote=SYNC.pendingRemote?_dMergeState(SYNC.pendingRemote,rem):rem;return}adopt(rem)}
+function adopt(v){var rem=norm(v),atual=norm(state),juntos=_dMergeState(rem,atual),fix=corrigirSeguroMobiLUH(juntos);if(sanearSegurosAgrupados(juntos))fix=true;if(migrarFixas17(juntos))fix=true;var mudaLocal=!_dSyncIgual(juntos,atual),precisa=!_dSyncIgual(juntos,rem);SYNC.pendingRemote=null;if(!mudaLocal&&!precisa&&!fix)return;state=norm(juntos);if(mudaLocal||fix){persist();filter='all';render();_dToastSync()}if(precisa||fix){touch();persist();schedulePush()}}
 setInterval(function(){ if(SYNC.pendingRemote&&!inputFocused()) adopt(SYNC.pendingRemote) },1500);
 function openSync(){
  var cfg=syncCfg();
@@ -1770,13 +1717,13 @@ setInterval(checkUpdate,15*60*1000);
 
 /* ---------- início ---------- */
 state=load();
-if(corrigirSeguroMobiLUH(state)){persist();SYNC.pendingPush=true}
+var _migFix=migrarFixas17();if(corrigirSeguroMobiLUH(state)||sanearSegurosAgrupados(state)||_migFix){persist();SYNC.pendingPush=true}
 setTimeout(function(){try{migrarSeguros()}catch(e){}},50);
 var mlEl=document.getElementById('monthLabel');
-mlEl.addEventListener('input',function(){if(LOCK){this.value=state.month||'';return}state.month=this.value;save()});
+mlEl.addEventListener('input',function(){if(LOCK){this.value=state.month||'';return}state.month=this.value;state.monthAt=_dAg();save()});
 mlEl.addEventListener('blur',function(){
  var n=normMonth(this.value);
- if(n!==state.month){state.month=n;this.value=n;save()}
+ if(n!==state.month){state.month=n;state.monthAt=_dAg();this.value=n;save()}
 });
 render();
 try{
