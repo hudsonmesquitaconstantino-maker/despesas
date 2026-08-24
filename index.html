@@ -995,7 +995,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=12; var APP_DATE='23/08/2026';
+var APP_VER=13; var APP_DATE='24/08/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1007,6 +1007,7 @@ var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Grand Siena - LMY2A63',v:23700},
  {d:'05',n:'Seguro Grand Siena - LSK2B23',v:20500},
  {d:'10',n:'Seguro Mobi - RGB3E35',v:21202},
+ {d:'20',n:'Seguro Mobi - LUH7G30',v:20088},
  {d:'10',n:'Seguro Cronos - LUO2B58',v:26678},
  {d:'10',n:'Seguro Versa - FHP4B47',v:18878},
  {d:'10',n:'Seguro Uno - IXY2H87',v:20078},
@@ -1120,10 +1121,45 @@ function stamp(){
 }
 
 /* ---------- estado ---------- */
+function ehSeguroMobiLUH(i){
+ return !!(i&&i.cat==='seguro'&&String(i.desc||'').replace(/[\s-]/g,'').toUpperCase().indexOf('LUH7G30')>-1);
+}
+function corrigirSeguroMobiLUH(st){
+ /* Invariante v13: LUH-7G30 pode existir UMA única vez e sempre por R$ 200,88.
+    Duplicatas não são simplesmente removidas: viram lápides (del=true + at),
+    para que um iPhone/nuvem antigo não consiga ressuscitá-las no merge por id. */
+ st=st||state;if(!st)return false;
+ st.items=toArr(st.items);var agoraFix=Date.now(), ativos=[], todos=[];
+ st.items.forEach(function(i){if(ehSeguroMobiLUH(i)){todos.push(i);if(!i.del)ativos.push(i)}});
+ var keep=null;
+ /* Prioridade absoluta para a linha correta de R$ 200,88 já existente. */
+ ativos.forEach(function(i){
+  if(i.v===20088&&(!keep||keep.v!==20088||(i.at||0)>(keep.at||0)))keep=i;
+ });
+ if(!keep&&ativos.length){
+  keep=ativos.slice().sort(function(a,b){return (b.at||0)-(a.at||0)})[0];
+ }
+ var mudou=false;
+ if(!keep){
+  keep={id:'seg_luh7g30',day:'20',desc:'Seguro Mobi - LUH7G30',v:20088,cat:'seguro',s:'pend',at:agoraFix,del:false};
+  st.items.push(keep);todos.push(keep);mudou=true;
+ }
+ if(keep.day!=='20'||keep.desc!=='Seguro Mobi - LUH7G30'||keep.v!==20088||keep.cat!=='seguro'||keep.del){
+  keep.day='20';keep.desc='Seguro Mobi - LUH7G30';keep.v=20088;keep.cat='seguro';keep.del=false;keep.at=agoraFix;mudou=true;
+ }
+ todos.forEach(function(i){
+  if(i===keep)return;
+  if(!i.del){i.del=true;i.at=agoraFix;mudou=true}
+ });
+ return mudou;
+}
 function migrarSeguros(){
  /* troca as linhas de seguro agrupadas pelo detalhe carro a carro — uma única vez */
  try{
-  if(state.migs&&state.migs.seg1) return;
+  if(state.migs&&state.migs.seg1){
+   if(corrigirSeguroMobiLUH(state))save();
+   return;
+  }
  }catch(e){}
  var antigos=state.items.filter(function(i){
   return i.cat==='seguro'&&/todos os carros/i.test(i.desc||'');
@@ -1134,16 +1170,12 @@ function migrarSeguros(){
   state.items=state.items.filter(function(i){ return antigos.indexOf(i)<0 });
   SEGUROS_CARRO.forEach(function(s){
    state.items.push({id:uid(),day:s.d,desc:s.n,v:s.v,cat:'seguro',
-    s:(pagos[s.d]?'paid':'pend')});
+    s:(pagos[s.d]?'paid':'pend'),at:agora()});
   });
-  save(); render();
+  render();
   toast('🛡 Seguros detalhados por carro');
  }
- var temMobi=itens().filter(function(i){return String(i.desc||'').replace(/\s/g,'').toUpperCase().indexOf('LUH7G30')>-1});
- if(!temMobi.length){
-  state.items.push({id:uid(),day:'20',desc:'Seguro Mobi - LUH7G30',v:20400,cat:'seguro',s:'pend',at:agora()});
-  render(); toast('🛡 Seguro Mobi - LUH7G30 adicionado');
- }
+ corrigirSeguroMobiLUH(state);
  state.migs=state.migs||{}; state.migs.seg1=true; save();
 }
 function blank(){return {month:thisMonth(),rev:0,dev:'',items:[],history:[]}}
@@ -1509,6 +1541,7 @@ function importBackup(input){
     'Importar',
     function(){
      state=norm({month:data.month,items:data.items,history:data.history});
+     corrigirSeguroMobiLUH(state);
      save();render();toast('Backup importado ✓');
    });
   }catch(e){toast('⚠️ Arquivo inválido')}
@@ -1647,11 +1680,13 @@ function onRemote(v){
     mesclarLista junta por id e mantém a versão de maior 'at' de cada item,
     então a ordem do merge não perde lançamento nem ressuscita apagado. */
  var juntos=mesclar(v,state);
+ var fixMobi=corrigirSeguroMobiLUH(juntos);
  var antes=contaItens(state), depois=contaItens(juntos), naNuvem=contaItens(v);
  adopt(juntos);
  /* se o merge revelou itens que não estavam na nuvem (ou vice-versa), reenvia
-    o conjunto completo para os dois lados ficarem idênticos. */
- if(depois>naNuvem || depois>antes) schedulePush();
+    o conjunto completo para os dois lados ficarem idênticos. A correção LUH
+    também volta à nuvem para impedir que uma cópia antiga recrie duplicatas. */
+ if(depois>naNuvem || depois>antes || fixMobi) schedulePush();
 }
 function adopt(v){
  state=norm(v); SYNC.pendingRemote=null;
@@ -1735,6 +1770,7 @@ setInterval(checkUpdate,15*60*1000);
 
 /* ---------- início ---------- */
 state=load();
+if(corrigirSeguroMobiLUH(state)){persist();SYNC.pendingPush=true}
 setTimeout(function(){try{migrarSeguros()}catch(e){}},50);
 var mlEl=document.getElementById('monthLabel');
 mlEl.addEventListener('input',function(){if(LOCK){this.value=state.month||'';return}state.month=this.value;save()});
