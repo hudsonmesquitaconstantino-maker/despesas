@@ -995,7 +995,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=19; var APP_DATE='24/08/2026';
+var APP_VER=21; var APP_DATE='25/08/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1148,27 +1148,48 @@ function _dMergeState(a,b){
  o.items=_dMergeList(a.items,b.items);o.history=_dMergeHistoryList(a.history,b.history);o.migs=Object.assign({},a.migs||{},b.migs||{});o.resetAt=reset;if(reset){o.items=o.items.filter(function(x){return (Number(x&&x.at)||0)>=reset});o.history=o.history.filter(function(x){return (Number(x&&x.at)||0)>=reset})}o.rev=Math.max(Number(a.rev)||0,Number(b.rev)||0);o.dev=(Number(b.rev)||0)>(Number(a.rev)||0)?b.dev:((Number(b.rev)||0)<(Number(a.rev)||0)?a.dev:(String(b.dev||'')>String(a.dev||'')?b.dev:a.dev));return norm(o)
 }
 
+/* v20: se um iPhone ainda estava no mês anterior e lança algo depois que o outro
+   já fechou, o lançamento não pode ficar invisível. Se existe fechamento daquele mês,
+   ele é incorporado ao histórico correto; sem fechamento correspondente, volta a ficar
+   visível no mês corrente. */
+function _dReconciliarOrfaosFechados(st){
+ st=st||state;if(!st)return false;var atual=_mesOrdem(st.month),mud=false,hs=toArr(st.history);
+ toArr(st.items).forEach(function(it){if(!it||it.del)return;var io=_mesOrdem(it.mes);if(!io||io>=atual)return;var key=_mesKey(it.mes),h=null;for(var i=0;i<hs.length;i++){if(hs[i]&&!hs[i].del&&(hs[i].periodKey||_mesKey(hs[i].month))===key){h=hs[i];break}}
+  if(h){h.items=_dMergeList(h.items,[JSON.parse(JSON.stringify(it))]);var ativos=toArr(h.items).filter(function(x){return x&&!x.del}),tt=totals(ativos);h.paid=tt.paid;h.pend=tt.pend;h.all=tt.all;h.text=buildText(ativos,h.month);if((Number(it.at)||0)>(Number(h.at)||0)){h.at=Number(it.at)||0;h.by=it.by||h.by}it.del=true;mud=true}
+  else{it.mes=st.month;mud=true}
+ });return mud;
+}
+
 /* ---------- estado ---------- */
 function ehSeguroMobiLUH(i){
  return !!(i&&i.cat==='seguro'&&String(i.desc||'').replace(/[\s-]/g,'').toUpperCase().indexOf('LUH7G30')>-1);
 }
 function corrigirSeguroMobiLUH(st){
- st=st||state;if(!st)return false;st.items=toArr(st.items);var agoraFix=Date.now(),mesAtual=normMonth(st.month||thisMonth()),ativos=[],todos=[];
+ st=st||state;if(!st)return false;st.items=toArr(st.items);st.migs=(st.migs&&typeof st.migs==='object')?st.migs:{};
+ var primeira=!st.migs.luhRepair21,agoraFix=Date.now(),mesAtual=normMonth(st.month||thisMonth()),ativos=[],todos=[];
  st.items.forEach(function(i){if(ehSeguroMobiLUH(i)&&normMonth(i.mes||mesAtual)===mesAtual){todos.push(i);if(!i.del)ativos.push(i)}});
- /* O erro real estava em AGOSTO/2026: 200,88 + duas cópias de 204,00. Em qualquer
-    mês mantemos só uma linha. Em meses futuros o valor vem da despesa fixa carregada
-    do mês anterior e continua totalmente editável; não forçamos R$200,88 fora de agosto. */
- var mesBug=(mesAtual==='AGOSTO/2026'),keep=null;
- if(mesBug)ativos.forEach(function(i){if(i.v===20088&&(!keep||(i.at||0)>(keep.at||0)))keep=i});
- if(!keep&&ativos.length)keep=ativos.slice().sort(function(a,b){var aa=Number(a.at)||0,bb=Number(b.at)||0;if(aa!==bb)return bb-aa;return String(b.id||'').localeCompare(String(a.id||''))})[0];
- var mudou=false;
- if(!keep&&mesBug){keep={id:'seg_luh7g30_AGOSTO2026',mes:mesAtual,day:'20',desc:'Seguro Mobi - LUH7G30',v:20088,cat:'seguro',s:'pend',at:agoraFix,by:DEV,del:false};st.items.push(keep);todos.push(keep);mudou=true}
- if(keep){
-  if(keep.mes!==mesAtual||keep.day!=='20'||keep.desc!=='Seguro Mobi - LUH7G30'||keep.cat!=='seguro'||keep.del||(mesBug&&keep.v!==20088)){
-   keep.mes=mesAtual;keep.day='20';keep.desc='Seguro Mobi - LUH7G30';keep.cat='seguro';keep.del=false;if(mesBug)keep.v=20088;keep.at=agoraFix;keep.by=DEV;mudou=true
-  }
-  todos.forEach(function(i){if(i===keep)return;if(!i.del){i.del=true;i.at=agoraFix;i.by=DEV;mudou=true}});
+ /* v21: a anomalia histórica de AGOSTO/2026 é reparada UMA VEZ. Depois disso a
+    linha correta é uma despesa normal: pode ser editada ou excluída pelo usuário e
+    nunca é recriada/forçada automaticamente. Tombstones continuam impedindo que as
+    cópias antigas de R$204,00 ressuscitem por sincronização. */
+ var mesBug=(mesAtual==='AGOSTO/2026'),keep=null,mudou=false;
+ /* IDs das duas cópias comprovadamente erradas do bug original. Mesmo que um cache
+    antigo tente trazê-las de volta, elas permanecem sepultadas sem recriar a linha boa. */
+ if(mesBug){var ruins={nqaodat:1,ic0c0dh:1};todos.forEach(function(i){if(ruins[String(i.id||'')]&&!i.del){i.del=true;i.at=agoraFix;i.by=DEV;mudou=true}});ativos=todos.filter(function(i){return !i.del})}
+ if(ativos.length){
+  if(mesBug)ativos.forEach(function(i){if(i.v===20088&&(!keep||(Number(i.at)||0)>(Number(keep.at)||0)))keep=i});
+  if(!keep)keep=ativos.slice().sort(function(a,b){var aa=Number(a.at)||0,bb=Number(b.at)||0;if(aa!==bb)return bb-aa;return String(b.id||'').localeCompare(String(a.id||''))})[0];
  }
+ if(primeira&&mesBug&&!keep){keep={id:'seg_luh7g30_AGOSTO2026',mes:mesAtual,day:'20',desc:'Seguro Mobi - LUH7G30',v:20088,cat:'seguro',s:'pend',at:agoraFix,by:DEV,del:false};st.items.push(keep);todos.push(keep);ativos.push(keep);mudou=true}
+ if(keep){
+  if(primeira&&mesBug){
+   if(keep.mes!==mesAtual||keep.day!=='20'||keep.desc!=='Seguro Mobi - LUH7G30'||keep.cat!=='seguro'||keep.del||keep.v!==20088){keep.mes=mesAtual;keep.day='20';keep.desc='Seguro Mobi - LUH7G30';keep.cat='seguro';keep.del=false;keep.v=20088;keep.at=agoraFix;keep.by=DEV;mudou=true}
+  }
+  /* Duplicata nunca é útil. Mesmo após a migração, se um snapshot antigo trouxer
+     duas linhas ativas do mesmo seguro/mês, conserva a mais recente e sepulta as demais. */
+  ativos.forEach(function(i){if(i===keep)return;if(!i.del){i.del=true;i.at=agoraFix;i.by=DEV;mudou=true}});
+ }
+ if(primeira){st.migs.luhRepair21=true;mudou=true}
  return mudou;
 }
 function sanearSegurosAgrupados(st){
@@ -1559,6 +1580,9 @@ var SYNC={ref:null,online:false,pendingPush:false,pendingRemote:null,pushTimer:n
 function _dCanonSync(x,root){if(Array.isArray(x)){var a=x.map(function(v){return _dCanonSync(v,false)});a.sort(function(u,v){var A=JSON.stringify(u),B=JSON.stringify(v);return A<B?-1:(A>B?1:0)});return a}if(x&&typeof x==='object'){var o={};Object.keys(x).sort().forEach(function(k){if(root&&(k==='rev'||k==='dev'))return;o[k]=_dCanonSync(x[k],false)});return o}return x}
 function _dSyncSig(x){return JSON.stringify(_dCanonSync(x||{},true))}
 function _dSyncIgual(a,b){return _dSyncSig(a)===_dSyncSig(b)}
+function _dCanonBusiness(x,root){if(Array.isArray(x)){var a=x.map(function(v){return _dCanonBusiness(v,false)});a.sort(function(u,v){var A=JSON.stringify(u),B=JSON.stringify(v);return A<B?-1:(A>B?1:0)});return a}if(x&&typeof x==='object'){var o={};Object.keys(x).sort().forEach(function(k){if(k==='at'||k==='by'||(root&&(k==='rev'||k==='dev'||k==='monthAt'||k==='resetAt')))return;o[k]=_dCanonBusiness(x[k],false)});return o}return x}
+function _dBusinessSig(x){return JSON.stringify(_dCanonBusiness(x||{},true))}
+function _dBusinessIgual(a,b){return _dBusinessSig(a)===_dBusinessSig(b)}
 function _dToastSync(){var n=Date.now();if(n-SYNC.lastToastAt<3000)return;SYNC.lastToastAt=n;toast('🔄 Sincronização atualizada')}
 function touch(){state.rev=Date.now();state.dev=DEV}
 function toArr(x){
@@ -1623,12 +1647,13 @@ function startSync(){
  });
 }
 function push(){
- if(!SYNC.ref||!SYNC.gotRemote){SYNC.pendingPush=true;return}SYNC.pendingPush=false;var local=norm(state);
- SYNC.ref.transaction(function(cur){var junto=cur?_dMergeState(cur,local):local;if(cur&&_dSyncIgual(junto,cur))return;junto.rev=Math.max(_dAg(),Number(local.rev)||0,Number(cur&&cur.rev)||0);junto.dev=DEV;return junto},function(err,committed,snap){
+ if(!SYNC.ref||!SYNC.gotRemote){SYNC.pendingPush=true;return}SYNC.pendingPush=false;var local=norm(state);_dReconciliarOrfaosFechados(local);
+ SYNC.ref.transaction(function(cur){var junto=cur?_dMergeState(cur,local):local;_dReconciliarOrfaosFechados(junto);if(cur&&_dBusinessIgual(junto,cur))return;junto.rev=Math.max(_dAg(),Number(local.rev)||0,Number(cur&&cur.rev)||0);junto.dev=DEV;return junto},function(err,committed,snap){
   if(err){SYNC.pendingPush=true;return}if(!committed){SYNC.pendingPush=false;return}
-  if(snap&&snap.val()){var remoto=norm(snap.val()),atual=norm(state),junto=_dMergeState(remoto,atual),mudaLocal=!_dSyncIgual(junto,atual),precisa=!_dSyncIgual(junto,remoto);if(mudaLocal){state=junto;persist();if(!inputFocused())render()}if(precisa){touch();persist();schedulePush()}}
+  if(snap&&snap.val()){var remoto=norm(snap.val()),atual=norm(state),junto=_dMergeState(remoto,atual);_dReconciliarOrfaosFechados(junto);var mudaDados=!_dBusinessIgual(junto,atual),mudaMeta=!_dSyncIgual(junto,atual),precisa=!_dBusinessIgual(junto,remoto);if(mudaMeta){state=junto;persist()}if(mudaDados&&!inputFocused())render();if(precisa){touch();persist();schedulePush()}}
  },false);
 }
+
 function schedulePush(){
  clearTimeout(SYNC.pushTimer);
  SYNC.pushTimer=setTimeout(push,1200);
@@ -1641,7 +1666,7 @@ function mesclarLista(rem,loc){return _dMergeList(rem,loc)}
 function mesclar(remoto,local){return _dMergeState(remoto,local)}
 function contaItens(x){ return toArr(x&&x.items).filter(function(i){return i&&!i.del}).length }
 function onRemote(v){if(!v)return;SYNC.gotRemote=true;var rem=norm(v);if(inputFocused()){SYNC.pendingRemote=SYNC.pendingRemote?_dMergeState(SYNC.pendingRemote,rem):rem;return}adopt(rem)}
-function adopt(v){var rem=norm(v),atual=norm(state),juntos=_dMergeState(rem,atual),fix=corrigirSeguroMobiLUH(juntos);if(sanearSegurosAgrupados(juntos))fix=true;if(migrarFixas17(juntos))fix=true;var mudaLocal=!_dSyncIgual(juntos,atual),precisa=!_dSyncIgual(juntos,rem);SYNC.pendingRemote=null;if(!mudaLocal&&!precisa&&!fix)return;state=norm(juntos);if(mudaLocal||fix){persist();filter='all';render();_dToastSync()}if(precisa||fix){touch();persist();schedulePush()}}
+function adopt(v){var rem=norm(v),atual=norm(state),juntos=_dMergeState(rem,atual),fix=corrigirSeguroMobiLUH(juntos);if(sanearSegurosAgrupados(juntos))fix=true;if(migrarFixas17(juntos))fix=true;if(_dReconciliarOrfaosFechados(juntos))fix=true;var mudaDados=!_dBusinessIgual(juntos,atual),mudaMeta=!_dSyncIgual(juntos,atual),precisa=!_dBusinessIgual(juntos,rem);SYNC.pendingRemote=null;if(!mudaMeta&&!precisa&&!fix)return;state=norm(juntos);if(mudaMeta||fix)persist();if(mudaDados||fix){filter='all';render();_dToastSync()}if(precisa||fix){touch();persist();schedulePush()}}
 setInterval(function(){ if(SYNC.pendingRemote&&!inputFocused()) adopt(SYNC.pendingRemote) },1500);
 function openSync(){
  var cfg=syncCfg();
