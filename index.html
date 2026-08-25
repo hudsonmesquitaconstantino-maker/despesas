@@ -995,7 +995,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=21; var APP_DATE='25/08/2026';
+var APP_VER=22; var APP_DATE='25/08/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1180,7 +1180,12 @@ function corrigirSeguroMobiLUH(st){
   if(mesBug)ativos.forEach(function(i){if(i.v===20088&&(!keep||(Number(i.at)||0)>(Number(keep.at)||0)))keep=i});
   if(!keep)keep=ativos.slice().sort(function(a,b){var aa=Number(a.at)||0,bb=Number(b.at)||0;if(aa!==bb)return bb-aa;return String(b.id||'').localeCompare(String(a.id||''))})[0];
  }
- if(primeira&&mesBug&&!keep){keep={id:'seg_luh7g30_AGOSTO2026',mes:mesAtual,day:'20',desc:'Seguro Mobi - LUH7G30',v:20088,cat:'seguro',s:'pend',at:agoraFix,by:DEV,del:false};st.items.push(keep);todos.push(keep);ativos.push(keep);mudou=true}
+ /* v22: a criação/semeadura da linha só pode acontecer DEPOIS de conhecer a nuvem.
+    Antes do primeiro snapshot (aparelho novo/vazio/atrasado) adiamos, para nunca
+    recriar uma linha que o outro aparelho já excluiu. O reparo roda de novo no
+    primeiro merge (adopt), já com o estado real e a flag luhRepair21 vinda da nuvem. */
+ var _adiouCriacao=false;
+ if(primeira&&mesBug&&!keep){if(typeof SYNC!=='undefined'&&SYNC&&SYNC.gotRemote){keep={id:'seg_luh7g30_AGOSTO2026',mes:mesAtual,day:'20',desc:'Seguro Mobi - LUH7G30',v:20088,cat:'seguro',s:'pend',at:agoraFix,by:DEV,del:false};st.items.push(keep);todos.push(keep);ativos.push(keep);mudou=true}else{_adiouCriacao=true}}
  if(keep){
   if(primeira&&mesBug){
    if(keep.mes!==mesAtual||keep.day!=='20'||keep.desc!=='Seguro Mobi - LUH7G30'||keep.cat!=='seguro'||keep.del||keep.v!==20088){keep.mes=mesAtual;keep.day='20';keep.desc='Seguro Mobi - LUH7G30';keep.cat='seguro';keep.del=false;keep.v=20088;keep.at=agoraFix;keep.by=DEV;mudou=true}
@@ -1189,7 +1194,7 @@ function corrigirSeguroMobiLUH(st){
      duas linhas ativas do mesmo seguro/mês, conserva a mais recente e sepulta as demais. */
   ativos.forEach(function(i){if(i===keep)return;if(!i.del){i.del=true;i.at=agoraFix;i.by=DEV;mudou=true}});
  }
- if(primeira){st.migs.luhRepair21=true;mudou=true}
+ if(primeira&&!_adiouCriacao){st.migs.luhRepair21=true;mudou=true}
  return mudou;
 }
 function sanearSegurosAgrupados(st){
