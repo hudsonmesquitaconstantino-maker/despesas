@@ -913,7 +913,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
     <div class="lbl">Valor</div>
     <input class="field" id="adVal" inputmode="text" placeholder="ex.: 205,00">
     <div class="lbl">Categoria</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">💸 PIX é gasto avulso: não é levado para o mês seguinte.</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">💸 PIX é a única categoria que não é levada para o mês seguinte. Fixas e seguros mantêm o valor; cartões e acertos continuam zerados.</div>
     <div class="catpick" id="adCats"></div>
     <div class="row">
       <button class="btn ghost" onclick="document.getElementById('ovAdd').classList.remove('open')">Cancelar</button>
@@ -995,7 +995,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=17; var APP_DATE='24/08/2026';
+var APP_VER=19; var APP_DATE='24/08/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1025,7 +1025,7 @@ var SEGUROS_CARRO=[
  {d:'20',n:'Seguro Sandero - PYO4A55',v:18878},
  {d:'20',n:'Seguro Hilux - DVS7C98',v:55470}
 ];
-var CATS=[{k:'fixa',n:'FIXAS',ic:'📌'},{k:'seguro',n:'SEGUROS',ic:'🛡'},{k:'cartao',n:'CARTÕES',ic:'💳'},{k:'outros',n:'OUTROS',ic:'🧾'},{k:'pix',n:'PIX',ic:'💸'}];
+var CATS=[{k:'fixa',n:'FIXAS',ic:'📌'},{k:'seguro',n:'SEGUROS',ic:'🛡'},{k:'cartao',n:'CARTÕES',ic:'💳'},{k:'outros',n:'ACERTOS',ic:'🤝'},{k:'pix',n:'PIX',ic:'💸'}];
 var state=null, filter='all', askCb=null, EH_ID=null, AD_ID=null, AD_CAT='seguro';
 var LOCK=true; // proteção: o app SEMPRE abre travado
 function toggleLock(){
@@ -1449,24 +1449,25 @@ function closeMonth(){
  if(travado())return;if(!itens().length){toast('⚠️ Nenhuma despesa neste mês');return}
  var atuais=itens(),tt=totals(atuais),abertas=atuais.filter(function(it){return it.s!=='paid'}).length;
  var nFix=atuais.filter(function(it){return it.cat==='fixa'||it.cat==='seguro'}).length,
-     nCart=atuais.filter(function(it){return it.cat==='cartao'}).length,
-     nPix=atuais.filter(function(it){return it.cat==='pix'}).length,
-     nAv=atuais.filter(function(it){return it.cat==='outros'}).length;
+     nZero=atuais.filter(function(it){return it.cat==='cartao'||it.cat==='outros'}).length,
+     nPix=atuais.filter(function(it){return it.cat==='pix'}).length;
  ask('Fechar '+state.month,'Total: '+fmt(tt.all)+'\nPago: '+fmt(tt.paid)+'\nFicou em aberto: '+fmt(tt.pend)+(abertas?' ('+abertas+' conta'+(abertas>1?'s':'')+')':'')+
   '\n\nNo próximo mês:'+
-  (nFix?'\n• '+nFix+' fixa'+(nFix>1?'s':'')+'/seguro'+(nFix>1?'s':'')+' continuam com o MESMO valor (editável).':'')+
-  (nCart?'\n• '+nCart+' cartão'+(nCart>1?'ões':'')+' continua'+(nCart>1?'m':'')+' com valor R$0,00 para a nova fatura.':'')+
-  ((nPix+nAv)?'\n• PIX e gastos avulsos ficam somente neste mês e NÃO são levados.':''),'Fechar mês',function(){
+  (nFix?'\n• '+nFix+' fixa'+(nFix>1?'s':'')+'/seguro'+(nFix>1?'s':'')+' continua'+(nFix>1?'m':'')+' com o MESMO valor (editável).':'')+
+  (nZero?'\n• Cartões e acertos continuam no próximo mês com valor R$0,00 para preencher de novo.':'')+
+  (nPix?'\n• '+nPix+' PIX fica'+(nPix>1?'m':'')+' somente neste mês e NÃO '+(nPix>1?'são':'é')+' levado'+(nPix>1?'s':'')+'.':''),'Fechar mês',function(){
   var ts=_dAg(),mesVelho=state.month,novoMes=nextMonth(mesVelho),snap=JSON.parse(JSON.stringify(atuais));
   state.history.unshift({id:uid(),periodKey:_mesKey(mesVelho),month:mesVelho,closedAt:stamp(),paid:tt.paid,pend:tt.pend,all:tt.all,text:buildText(snap,mesVelho),items:snap,at:ts,by:DEV,del:false});
   atuais.forEach(function(it){it.del=true;it.at=ts;it.by=DEV});
   atuais.forEach(function(it){
-   var leva=(it.cat==='fixa'||it.cat==='seguro'||it.cat==='cartao');if(!leva)return;
+   /* Regra oficial v18: somente PIX pertence exclusivamente ao mês de origem.
+      Fixas/seguros carregam o valor; cartões/acertos carregam a linha zerada. */
+   if(it.cat==='pix')return;
    var carryId='carry_'+String(it.id||'rec').replace(/[^A-Za-z0-9_-]/g,'')+'_'+String(novoMes||'').replace(/[^A-Za-z0-9]/g,'');
-   var novoValor=(it.cat==='cartao'?0:it.v);
+   var novoValor=(it.cat==='fixa'||it.cat==='seguro')?it.v:0;
    state.items.push({id:carryId,mes:novoMes,day:it.day,desc:it.desc,v:novoValor,cat:it.cat,s:'pend',at:ts,by:DEV,del:false});
   });
-  state.month=novoMes;state.monthAt=ts;filter='all';corrigirSeguroMobiLUH(state);save();render();toast('Mês fechado ✓ '+state.month+' aberto com fixas e cartões');
+  state.month=novoMes;state.monthAt=ts;filter='all';corrigirSeguroMobiLUH(state);save();render();toast('Mês fechado ✓ '+state.month+' aberto com recorrentes e acertos');
  })
 }
 
