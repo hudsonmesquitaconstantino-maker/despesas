@@ -873,7 +873,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
       <div class="suiteEyebrow">GUIMASCAR · FINANCEIRO</div>
       <div class="titleMonthRow">
         <div class="suiteTitle">Despesas</div>
-        <input id="monthLabel" placeholder="mês/ano" maxlength="14">
+        <input id="monthLabel" readonly aria-readonly="true" placeholder="mês/ano" maxlength="14">
       </div>
       <div id="verTag"></div>
     </div>
@@ -995,7 +995,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=22; var APP_DATE='25/08/2026';
+var APP_VER=23; var APP_DATE='26/08/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1127,7 +1127,7 @@ function stamp(){
    seguinte, impedindo que um iPhone atrasado misture agosto dentro de setembro. */
 function _dAg(){return Date.now()}
 function _dMark(o){if(!o)return;o.at=_dAg();o.by=DEV}
-function _dNewer(a,b){if(!a)return b;if(!b)return a;if(!!a.del!==!!b.del)return a.del?a:b;var aa=Number(a.at)||0,bb=Number(b.at)||0;if(aa!==bb)return bb>aa?b:a;var ab=String(a.by||''),bbb=String(b.by||'');if(ab!==bbb)return bbb>ab?b:a;return JSON.stringify(b)>JSON.stringify(a)?b:a}
+function _dNewer(a,b){if(!a)return b;if(!b)return a;if(!!a.del!==!!b.del){var tomb=a.del?a:b,live=a.del?b:a,ra=String(tomb.delReason||'');if(ra==='rollover'||ra==='period-replace'){var ta=Number(tomb.at)||0,la=Number(live.at)||0;if(la>ta)return live}return tomb}var aa=Number(a.at)||0,bb=Number(b.at)||0;if(aa!==bb)return bb>aa?b:a;var ab=String(a.by||''),bbb=String(b.by||'');if(ab!==bbb)return bbb>ab?b:a;return JSON.stringify(b)>JSON.stringify(a)?b:a}
 function _dMergeList(A,B,keyFn,merger){var m={};function add(x){if(!x)return;var k=(keyFn?keyFn(x):x.id)||('anon:'+JSON.stringify(x));m[k]=m[k]?(merger||_dNewer)(m[k],x):x}toArr(A).forEach(add);toArr(B).forEach(add);return Object.keys(m).sort().map(function(k){return m[k]})}
 function _mesKey(m){return 'mes:'+String(m||'').trim().toUpperCase()}
 function _mesOrdem(m){var p=String(m||'').toUpperCase().split('/'),i=mIndex(p[0]),y=parseInt(p[1],10);return i>=0&&!isNaN(y)?y*12+i:0}
@@ -1143,8 +1143,10 @@ function _dMergeState(a,b){
     cortados ANTES do merge; assim uma lápide antiga não consegue apagar o item restaurado. */
  function clip(s){if(!reset)return s;s.items=toArr(s.items).filter(function(x){return (Number(x&&x.at)||0)>=reset});s.history=toArr(s.history).filter(function(x){return (Number(x&&x.at)||0)>=reset});return s}
  a=clip(a);b=clip(b);var o={},am=Number(a.monthAt)||0,bm=Number(b.monthAt)||0,oa=_mesOrdem(a.month),ob=_mesOrdem(b.month);
- /* mês corrente nunca regride em sincronização normal; timestamp/device só desempata o mesmo mês */
- if(ob>oa||(ob===oa&&(bm>am||(bm===am&&String(b.dev||'')>String(a.dev||''))))){o.month=b.month;o.monthAt=bm}else{o.month=a.month;o.monthAt=am}
+ /* v23: mudança CONTROLADA de competência mais recente vence. A ordem cronológica
+    só desempata o mesmo monthAt. Isso permite uma reabertura legítima sem um iPhone
+    atrasado no mês seguinte empurrar a competência de volta para frente. */
+ if(bm>am||(bm===am&&(ob>oa||(ob===oa&&String(b.dev||'')>String(a.dev||''))))){o.month=b.month;o.monthAt=bm}else{o.month=a.month;o.monthAt=am}
  o.items=_dMergeList(a.items,b.items);o.history=_dMergeHistoryList(a.history,b.history);o.migs=Object.assign({},a.migs||{},b.migs||{});o.resetAt=reset;if(reset){o.items=o.items.filter(function(x){return (Number(x&&x.at)||0)>=reset});o.history=o.history.filter(function(x){return (Number(x&&x.at)||0)>=reset})}o.rev=Math.max(Number(a.rev)||0,Number(b.rev)||0);o.dev=(Number(b.rev)||0)>(Number(a.rev)||0)?b.dev:((Number(b.rev)||0)<(Number(a.rev)||0)?a.dev:(String(b.dev||'')>String(a.dev||'')?b.dev:a.dev));return norm(o)
 }
 
@@ -1155,7 +1157,7 @@ function _dMergeState(a,b){
 function _dReconciliarOrfaosFechados(st){
  st=st||state;if(!st)return false;var atual=_mesOrdem(st.month),mud=false,hs=toArr(st.history);
  toArr(st.items).forEach(function(it){if(!it||it.del)return;var io=_mesOrdem(it.mes);if(!io||io>=atual)return;var key=_mesKey(it.mes),h=null;for(var i=0;i<hs.length;i++){if(hs[i]&&!hs[i].del&&(hs[i].periodKey||_mesKey(hs[i].month))===key){h=hs[i];break}}
-  if(h){h.items=_dMergeList(h.items,[JSON.parse(JSON.stringify(it))]);var ativos=toArr(h.items).filter(function(x){return x&&!x.del}),tt=totals(ativos);h.paid=tt.paid;h.pend=tt.pend;h.all=tt.all;h.text=buildText(ativos,h.month);if((Number(it.at)||0)>(Number(h.at)||0)){h.at=Number(it.at)||0;h.by=it.by||h.by}it.del=true;mud=true}
+  if(h){h.items=_dMergeList(h.items,[JSON.parse(JSON.stringify(it))]);var ativos=toArr(h.items).filter(function(x){return x&&!x.del}),tt=totals(ativos);h.paid=tt.paid;h.pend=tt.pend;h.all=tt.all;h.text=buildText(ativos,h.month);if((Number(it.at)||0)>(Number(h.at)||0)){h.at=Number(it.at)||0;h.by=it.by||h.by}it.del=true;it.delReason='reconciled';mud=true}
   else{it.mes=st.month;mud=true}
  });return mud;
 }
@@ -1471,30 +1473,33 @@ function legacyCopy(txt,okMsg){
 }
 
 /* ---------- fechar mês ---------- */
+var DCRIT={busy:false,label:''};
+function _dCritReady(label){if(DCRIT.busy){toast('⏳ Operação crítica em andamento');return false}if(!SYNC.ref||!SYNC.gotRemote||!SYNC.online){toast('⛔ '+label+' só pode ser feito com a sincronização verde');return false}if(inputFocused()){toast('⚠️ Termine a edição antes de '+label.toLowerCase());return false}return true}
+function _dCritTxn(label,mutator,okMsg){
+ if(!_dCritReady(label))return;DCRIT.busy=true;DCRIT.label=label;setPill('wait','🟡 conferindo nuvem…');var motivo='';
+ SYNC.ref.transaction(function(cur){if(!cur){motivo='A nuvem ainda não possui uma base válida.';return}var base=_dMergeState(norm(cur),norm(state));_dReconciliarOrfaosFechados(base);var r=mutator(base);if(r!==true){motivo=String(r||'Conflito entre aparelhos.');return}base.rev=Math.max(_dAg(),Number(base.rev)||0,Number(cur&&cur.rev)||0);base.dev=DEV;return norm(base)},function(err,committed,snap){
+  DCRIT.busy=false;DCRIT.label='';setPill(SYNC.online?'on':'wait',SYNC.online?'🟢 sincronizado':'🟡 offline — na fila');
+  if(err){toast('⛔ '+label+' falhou: '+err.message);return}if(!committed){if(snap&&snap.val())adopt(snap.val());toast('⛔ '+(motivo||label+' cancelado para proteger os dados'));return}
+  if(snap&&snap.val()){state=norm(snap.val());persist();filter='all';render()}toast(okMsg);
+ },false);
+}
+function _dHistAtivo(st){return toArr(st&&st.history).filter(function(x){return x&&!x.del})}
+function _dItensAtivos(st){return toArr(st&&st.items).filter(function(x){return x&&!x.del&&normMonth(x.mes||st.month)===normMonth(st.month)})}
 function closeMonth(){
  if(travado())return;if(!itens().length){toast('⚠️ Nenhuma despesa neste mês');return}
  var atuais=itens(),tt=totals(atuais),abertas=atuais.filter(function(it){return it.s!=='paid'}).length;
- var nFix=atuais.filter(function(it){return it.cat==='fixa'||it.cat==='seguro'}).length,
-     nZero=atuais.filter(function(it){return it.cat==='cartao'||it.cat==='outros'}).length,
-     nPix=atuais.filter(function(it){return it.cat==='pix'}).length;
- ask('Fechar '+state.month,'Total: '+fmt(tt.all)+'\nPago: '+fmt(tt.paid)+'\nFicou em aberto: '+fmt(tt.pend)+(abertas?' ('+abertas+' conta'+(abertas>1?'s':'')+')':'')+
-  '\n\nNo próximo mês:'+
-  (nFix?'\n• '+nFix+' fixa'+(nFix>1?'s':'')+'/seguro'+(nFix>1?'s':'')+' continua'+(nFix>1?'m':'')+' com o MESMO valor (editável).':'')+
-  (nZero?'\n• Cartões e acertos continuam no próximo mês com valor R$0,00 para preencher de novo.':'')+
-  (nPix?'\n• '+nPix+' PIX fica'+(nPix>1?'m':'')+' somente neste mês e NÃO '+(nPix>1?'são':'é')+' levado'+(nPix>1?'s':'')+'.':''),'Fechar mês',function(){
-  var ts=_dAg(),mesVelho=state.month,novoMes=nextMonth(mesVelho),snap=JSON.parse(JSON.stringify(atuais));
-  state.history.unshift({id:uid(),periodKey:_mesKey(mesVelho),month:mesVelho,closedAt:stamp(),paid:tt.paid,pend:tt.pend,all:tt.all,text:buildText(snap,mesVelho),items:snap,at:ts,by:DEV,del:false});
-  atuais.forEach(function(it){it.del=true;it.at=ts;it.by=DEV});
-  atuais.forEach(function(it){
-   /* Regra oficial v18: somente PIX pertence exclusivamente ao mês de origem.
-      Fixas/seguros carregam o valor; cartões/acertos carregam a linha zerada. */
-   if(it.cat==='pix')return;
-   var carryId='carry_'+String(it.id||'rec').replace(/[^A-Za-z0-9_-]/g,'')+'_'+String(novoMes||'').replace(/[^A-Za-z0-9]/g,'');
-   var novoValor=(it.cat==='fixa'||it.cat==='seguro')?it.v:0;
-   state.items.push({id:carryId,mes:novoMes,day:it.day,desc:it.desc,v:novoValor,cat:it.cat,s:'pend',at:ts,by:DEV,del:false});
-  });
-  state.month=novoMes;state.monthAt=ts;filter='all';corrigirSeguroMobiLUH(state);save();render();toast('Mês fechado ✓ '+state.month+' aberto com recorrentes e acertos');
- })
+ var nFix=atuais.filter(function(it){return it.cat==='fixa'||it.cat==='seguro'}).length,nZero=atuais.filter(function(it){return it.cat==='cartao'||it.cat==='outros'}).length,nPix=atuais.filter(function(it){return it.cat==='pix'}).length,mesEsperado=state.month;
+ ask('Fechar '+mesEsperado,'Total: '+fmt(tt.all)+'\nPago: '+fmt(tt.paid)+'\nFicou em aberto: '+fmt(tt.pend)+(abertas?' ('+abertas+' conta'+(abertas>1?'s':'')+')':'')+'\n\nO app vai conferir a nuvem antes de fechar. No próximo mês:'+(nFix?'\n• '+nFix+' fixa'+(nFix>1?'s':'')+'/seguro'+(nFix>1?'s':'')+' continua'+(nFix>1?'m':'')+' com o MESMO valor.':'')+(nZero?'\n• Cartões e acertos continuam com R$0,00.':'')+(nPix?'\n• PIX não é levado para o mês seguinte.':''),'Fechar mês',function(){
+  var ts=_dAg(),novoMes=nextMonth(mesEsperado),closeId='close_'+_mesKey(mesEsperado).replace(/[^A-Za-z0-9]/g,'_')+'_'+ts;
+  _dCritTxn('Fechar mês',function(base){
+   if(normMonth(base.month)!==normMonth(mesEsperado))return 'Outro aparelho mudou o mês para '+base.month+'. Revise antes de fechar.';
+   var pk=_mesKey(mesEsperado);if(_dHistAtivo(base).some(function(h){return (h.periodKey||_mesKey(h.month))===pk}))return mesEsperado+' já aparece fechado na nuvem.';
+   var cur=_dItensAtivos(base),t=totals(cur),snap=JSON.parse(JSON.stringify(cur));base.history.unshift({id:closeId,periodKey:pk,month:mesEsperado,closedAt:stamp(),paid:t.paid,pend:t.pend,all:t.all,text:buildText(snap,mesEsperado),items:snap,at:ts,by:DEV,del:false,delReason:''});
+   cur.forEach(function(it){it.del=true;it.delReason='rollover';it.at=ts;it.by=DEV});
+   cur.forEach(function(it){if(it.cat==='pix')return;var carryId='carry_'+String(it.id||'rec').replace(/[^A-Za-z0-9_-]/g,'')+'_'+String(novoMes||'').replace(/[^A-Za-z0-9]/g,'');var nv=(it.cat==='fixa'||it.cat==='seguro')?it.v:0;if(!toArr(base.items).some(function(x){return x&&x.id===carryId&&!x.del}))base.items.push({id:carryId,mes:novoMes,day:it.day,desc:it.desc,v:nv,cat:it.cat,s:'pend',at:ts,by:DEV,del:false,delReason:'',originCloseId:closeId})});
+   base.month=novoMes;base.monthAt=ts;return true;
+  },mesEsperado+' fechado com conferência da nuvem ✓');
+ });
 }
 
 /* ---------- histórico ---------- */
@@ -1511,7 +1516,7 @@ function openHistory(){
     +'<button class="mini" onclick="document.getElementById(\'h-'+m.id+'\').classList.toggle(\'open\')">👁 Ver</button>'
     +'<button class="mini" onclick="copyHist(\''+m.id+'\')">📋 Copiar</button>'
     +'<button class="mini" onclick="openHistEdit(\''+m.id+'\')">✏️ Editar</button>'
-    +'<button class="mini danger" onclick="delHist(\''+m.id+'\')">Excluir</button></div>'
+    +'<button class="mini" onclick="reopenMonth(\''+m.id+'\')">↩ Reabrir</button><button class="mini danger" onclick="delHist(\''+m.id+'\')">Excluir</button></div>'
     +'<pre>'+esc(m.text)+'</pre></div>';
   }).join('');
  }
@@ -1521,7 +1526,20 @@ function copyHist(id){
  var m=toArr(state.history).filter(function(x){return x.id===id&&!x.del})[0]; if(!m)return;
  copyText(m.text,'Mês '+m.month+' copiado ✓');
 }
-function delHist(id){if(travado())return;var m=toArr(state.history).filter(function(x){return x.id===id&&!x.del})[0];if(!m)return;ask('Excluir do histórico','Excluir o mês '+m.month+' ('+fmt(m.all)+') do histórico? Isso não pode ser desfeito.','Excluir',function(){m.del=true;m.at=agora();m.by=DEV;save();openHistory();toast('Mês excluído do histórico')})}
+function reopenMonth(id){
+ if(travado())return;var m=toArr(state.history).filter(function(x){return x.id===id&&!x.del})[0];if(!m)return;
+ var h=toArr(state.history).filter(function(x){return x&&!x.del}).slice().sort(function(a,b){return (Number(b.at)||0)-(Number(a.at)||0)});if(!h[0]||h[0].id!==id){toast('⚠️ Só o mês fechado mais recente pode ser reaberto');return}
+ ask('Reabrir '+m.month,'Só será permitido se o mês atual contiver exclusivamente as linhas carregadas automaticamente por esse fechamento e elas ainda não tiverem sido editadas.','Reabrir mês',function(){
+  var ts=_dAg(),mid=m.id;
+  _dCritTxn('Reabrir mês',function(base){var mb=_dHistAtivo(base).filter(function(x){return x.id===mid})[0];if(!mb)return 'Esse fechamento já foi alterado.';var hh=_dHistAtivo(base).slice().sort(function(a,b){return (Number(b.at)||0)-(Number(a.at)||0)});if(!hh[0]||hh[0].id!==mid)return 'Existe um fechamento mais recente.';
+   var cur=_dItensAtivos(base);if(cur.some(function(it){return it.originCloseId!==mid||(Number(it.at)||0)!==(Number(mb.at)||0)}))return 'O mês atual já foi editado. Reabertura bloqueada para não perder dados.';
+   cur.forEach(function(it){it.del=true;it.delReason='period-replace';it.at=ts;it.by=DEV});
+   toArr(mb.items).filter(function(it){return it&&!it.del}).forEach(function(it,i){base.items.push({id:'reopen_'+mid+'_'+i+'_'+ts,mes:mb.month,day:it.day,desc:it.desc,v:Number(it.v)||0,cat:it.cat,s:it.s==='paid'?'paid':'pend',at:ts,by:DEV,del:false,delReason:'',originCloseId:mid})});
+   mb.del=true;mb.delReason='reopen';mb.at=ts;mb.by=DEV;mb.periodKey='reopened:'+mid+':'+ts;base.month=mb.month;base.monthAt=ts;return true;
+  },'↩ '+m.month+' reaberto com segurança');
+ });
+}
+function delHist(id){if(travado())return;var m=toArr(state.history).filter(function(x){return x.id===id&&!x.del})[0];if(!m)return;ask('Excluir do histórico','Excluir o mês '+m.month+' ('+fmt(m.all)+') do histórico? A exclusão será feita diretamente na nuvem.','Excluir',function(){var ts=_dAg(),mid=m.id;_dCritTxn('Excluir histórico',function(base){var mb=_dHistAtivo(base).filter(function(x){return x.id===mid})[0];if(!mb)return 'Esse registro já não existe.';mb.del=true;mb.delReason='user-delete';mb.at=ts;mb.by=DEV;return true},'Mês excluído do histórico ✓')})}
 function openHistEdit(id){
  var m=toArr(state.history).filter(function(x){return x.id===id&&!x.del})[0]; if(!m)return;
  EH_ID=id;
@@ -1597,8 +1615,8 @@ function toArr(x){
 }
 function norm(s){
  if(!s||typeof s!=='object')s={};var mes=normMonth(typeof s.month==='string'&&s.month?s.month:thisMonth()),o={migs:(s.migs&&typeof s.migs==='object'?s.migs:{}),month:mes,monthAt:Number(s.monthAt)||0,resetAt:Number(s.resetAt)||0,rev:s.rev||0,dev:s.dev||'',items:[],history:[]};
- toArr(s.items).forEach(function(it){if(!it)return;o.items.push({id:it.id||uid(),mes:normMonth(it.mes||mes),day:normDia(it.day),desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),cat:(it.cat==='fixa'||it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',s:(it.s==='paid'?'paid':'pend'),at:Number(it.at)||0,by:it.by||'',del:!!it.del})});
- toArr(s.history).forEach(function(m){if(!m)return;o.history.push({id:m.id||uid(),periodKey:m.periodKey||_mesKey(m.month),month:normMonth(m.month||''),closedAt:m.closedAt||'',paid:m.paid||0,pend:m.pend||0,all:m.all||0,text:m.text||'',items:toArr(m.items),at:Number(m.at)||0,by:m.by||'',del:!!m.del})});return o;
+ toArr(s.items).forEach(function(it){if(!it)return;o.items.push({id:it.id||uid(),mes:normMonth(it.mes||mes),day:normDia(it.day),desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),cat:(it.cat==='fixa'||it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',s:(it.s==='paid'?'paid':'pend'),at:Number(it.at)||0,by:it.by||'',del:!!it.del,delReason:it.delReason||'',originCloseId:it.originCloseId||''})});
+ toArr(s.history).forEach(function(m){if(!m)return;o.history.push({id:m.id||uid(),periodKey:m.periodKey||_mesKey(m.month),month:normMonth(m.month||''),closedAt:m.closedAt||'',paid:m.paid||0,pend:m.pend||0,all:m.all||0,text:m.text||'',items:toArr(m.items),at:Number(m.at)||0,by:m.by||'',del:!!m.del,delReason:m.delReason||''})});return o;
 }
 function syncCfg(){try{return JSON.parse(localStorage.getItem('guimas_despesas_sync')||'null')}catch(e){return null}}
 function setPill(mode,txt){
@@ -1713,6 +1731,7 @@ function disableSync(){
 /* ---------- auto-atualização ---------- */
 function safeToReload(){
  try{
+  if(typeof DCRIT!=='undefined'&&DCRIT&&DCRIT.busy)return false;
   var a=document.activeElement;
   if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'))return false;
   var ovs=document.querySelectorAll?document.querySelectorAll('.overlay.open'):[];
@@ -1726,17 +1745,16 @@ function checkUpdate(){
   fetch('index.html?upd='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){
    var m=t.match(/APP_VER=(\d+)/);
    if(m&&parseInt(m[1],10)>APP_VER&&!_updFound){
-    _updFound=true;
-    toast('⬆️ Atualizando para a versão nova…');
+    _updFound=true;var nv=parseInt(m[1],10);toast('⬆️ Atualizando para a v'+nv+'…');
     setTimeout(function tryReload(){
-     if(safeToReload()){location.reload()}
-     else{setTimeout(tryReload,20000)}
-    },1500);
+     if(safeToReload()){try{document.open();document.write(t);document.close()}catch(e){try{location.replace(location.pathname+'?v='+nv)}catch(e2){location.reload()}}}
+     else{setTimeout(tryReload,5000)}
+    },700);
    }
   }).catch(function(){});
  }catch(e){}
 }
-setTimeout(checkUpdate,4000);
+setTimeout(checkUpdate,800);
 try{
  document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible') checkUpdate();
@@ -1751,11 +1769,7 @@ state=load();
 var _migFix=migrarFixas17();if(corrigirSeguroMobiLUH(state)||sanearSegurosAgrupados(state)||_migFix){persist();SYNC.pendingPush=true}
 setTimeout(function(){try{migrarSeguros()}catch(e){}},50);
 var mlEl=document.getElementById('monthLabel');
-mlEl.addEventListener('input',function(){if(LOCK){this.value=state.month||'';return}state.month=this.value;state.monthAt=_dAg();save()});
-mlEl.addEventListener('blur',function(){
- var n=normMonth(this.value);
- if(n!==state.month){state.month=n;state.monthAt=_dAg();this.value=n;save()}
-});
+mlEl.addEventListener('click',function(){toast('🔒 O mês é controlado pelo fechamento/reabertura para evitar conflito entre aparelhos')});
 render();
 try{
  var vt=document.getElementById('verTag');
