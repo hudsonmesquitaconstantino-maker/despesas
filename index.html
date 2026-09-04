@@ -397,6 +397,36 @@ body.locked .item .desc{padding-left:3px}
 .cat.resumo h2{border-bottom:none;margin-bottom:0}
 .resline{font-size:13px;padding:8px 3px;border-top:1px solid rgba(25,32,40,.055)}
 .resline span:last-child{font-family:var(--mono);font-weight:800;color:#273445}
+.insuranceBreakdown{
+  margin:0 12px 5px 42px;
+  border-left:2px solid rgba(69,105,86,.13);
+  background:rgba(247,249,250,.72);
+  border-radius:0 10px 10px 0;
+  overflow:hidden;
+}
+.insuranceDay{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:31px;
+  padding:7px 10px;
+  border-top:1px solid rgba(25,32,40,.045);
+  font-size:11px;
+}
+.insuranceDay:first-child{border-top:0}
+.insuranceDay .lab{
+  color:#68717A;
+  font-weight:720;
+}
+.insuranceDay .val{
+  margin-left:auto;
+  white-space:nowrap;
+  color:#273445;
+  font-family:var(--mono);
+  font-weight:820;
+}
+
 .empty{padding:36px 18px;color:#8A9199;font-size:14px}
 
 /* Barra inferior flutuante */
@@ -825,6 +855,9 @@ main{padding:10px 8px 6px;max-width:620px}
 body.locked .item{grid-template-columns:34px minmax(0,1fr) 88px 34px}
 .addLine{margin:4px 9px 9px;padding:8px 9px;border-radius:10px;font-size:11px}
 .cat.resumo{padding-bottom:4px}.cat.resumo h2{padding:10px 12px}.resline{padding:8px 12px;font-size:11.5px}
+.insuranceBreakdown{margin:0 9px 5px 35px}
+.insuranceDay{min-height:28px;padding:6px 9px;font-size:10.5px}
+
 .addBig{margin:2px 0 14px;padding:11px;border-radius:13px;font-size:12.5px}
 .empty{padding:26px 14px;font-size:13px}
 
@@ -995,7 +1028,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=25; var APP_DATE='26/08/2026';
+var APP_VER=26; var APP_DATE='03/09/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1247,6 +1280,29 @@ function catTotal(k){
  itens().forEach(function(it){ if(it.cat===k) t+=it.v });
  return t;
 }
+function seguroTotaisPorDia(){
+ var mapa={};
+ itens().forEach(function(it){
+  if(!it||it.del||it.cat!=='seguro')return;
+  var d=normDia(it.day)||'--';
+  mapa[d]=(mapa[d]||0)+(Number(it.v)||0);
+ });
+ var dias=Object.keys(mapa);
+ dias.sort(function(a,b){
+  var x=parseInt(a,10),y=parseInt(b,10);
+  if(isNaN(x))x=99;if(isNaN(y))y=99;
+  if(x!==y)return x-y;
+  return String(a).localeCompare(String(b));
+ });
+ return dias.map(function(d){return {day:d,total:mapa[d]||0}});
+}
+function resumoSegurosPorDia(){
+ var grupos=seguroTotaisPorDia();
+ if(!grupos.length)return '';
+ return '<div class="insuranceBreakdown">'+grupos.map(function(g){
+  return '<div class="insuranceDay"><span class="lab">↳ Seguros dia '+esc(g.day)+'</span><span class="val">'+fmt(g.total)+'</span></div>';
+ }).join('')+'</div>';
+}
 function byDay(a,b){
  var x=parseInt(a.day,10), y=parseInt(b.day,10);
  if(isNaN(x))x=99; if(isNaN(y))y=99;
@@ -1316,7 +1372,9 @@ function render(){
 function resumoCats(){
  var linhas=CATS.map(function(c){
   var t=catTotal(c.k); if(!t) return '';
-  return '<div class="resline"><span>'+c.ic+' '+c.n+'</span><span>'+fmt(t)+'</span></div>';
+  var linha='<div class="resline"><span>'+c.ic+' '+c.n+'</span><span>'+fmt(t)+'</span></div>';
+  if(c.k==='seguro')linha+=resumoSegurosPorDia();
+  return linha;
  }).filter(Boolean).join('');
  if(!linhas) return '';
  return '<div class="cat resumo"><h2><span>📊 RESUMO POR TIPO</span></h2>'+linhas+'</div>';
@@ -1782,7 +1840,7 @@ try{
 }catch(e){}
 startSync();
 try{
- if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(r){try{r.update()}catch(e){}}).catch(function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
+ if('serviceWorker' in navigator){navigator.serviceWorker.register('SW.js',{updateViaCache:'none'}).then(function(r){try{r.update()}catch(e){}}).catch(function(){navigator.serviceWorker.register('SW.js').catch(function(){})})}
 }catch(e){}
 </script>
 </body>
