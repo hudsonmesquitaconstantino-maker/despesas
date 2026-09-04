@@ -722,7 +722,7 @@ body.locked #monthLabel{background:transparent}
 .tot.r{background:linear-gradient(180deg,#FFFFFF 0%,#FFF8F8 100%);border-color:rgba(194,68,68,.10)}
 .tot.g .vl{color:var(--green-strong)} .tot.r .vl{color:var(--red-strong)}
 .tot.sel,.tot.g.sel{transform:translateY(-1px);box-shadow:0 0 0 3px rgba(30,42,58,.055),0 10px 24px rgba(20,28,36,.065)}
-.filterbar{position:sticky;top:calc(8px + env(safe-area-inset-top));z-index:45;margin:8px 12px 0;box-shadow:0 8px 24px rgba(20,28,36,.06)}
+.filterbar{position:static;top:auto;z-index:auto;margin:7px 0 0;box-shadow:none}
 main{padding:16px 10px 8px;max-width:620px}
 .cat{
   border-radius:24px;padding:0;margin-bottom:14px;overflow:hidden;
@@ -798,10 +798,13 @@ body.locked .item .val{padding-right:1px}
    ============================================================ */
 body{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
 header{
-  position:relative;top:auto;
+  position:sticky;top:0;z-index:50;
   padding:calc(8px + env(safe-area-inset-top)) 12px 10px;
   background:rgba(246,248,250,.94);
-  box-shadow:0 4px 18px rgba(25,32,40,.035);
+  -webkit-backdrop-filter:blur(22px) saturate(145%);
+  backdrop-filter:blur(22px) saturate(145%);
+  border-bottom:1px solid rgba(25,32,40,.055);
+  box-shadow:0 5px 18px rgba(25,32,40,.055);
 }
 .compactHead{align-items:center;margin-bottom:8px;gap:8px}
 .suiteBrand{flex:1;min-width:0}
@@ -833,7 +836,7 @@ header{
   margin-top:5px;font-size:clamp(12px,3.45vw,15px);line-height:1;font-weight:820;letter-spacing:-.55px;
   white-space:nowrap;
 }
-.filterbar{top:calc(6px + env(safe-area-inset-top));margin:6px 8px 0;padding:7px 10px;border-radius:12px;font-size:11px}
+.filterbar{top:auto;margin:6px 0 0;padding:7px 10px;border-radius:12px;font-size:11px}
 .filterbar button{font-size:10px;padding:5px 8px}
 
 main{padding:10px 8px 6px;max-width:620px}
@@ -919,12 +922,11 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
     <div class="tot g" id="cardPaid" onclick="setFilter('paid')"><div class="lb">Pago</div><div class="vl" id="totPaid">R$0,00</div></div>
     <div class="tot r" id="cardPend" onclick="setFilter('pend')"><div class="lb">A pagar</div><div class="vl" id="totPend">R$0,00</div></div>
   </div>
+  <div class="filterbar" id="filterBar">
+    <span id="filterTxt"></span>
+    <button onclick="setFilter('all')">✕ Mostrar todas</button>
+  </div>
 </header>
-
-<div class="filterbar" id="filterBar">
-  <span id="filterTxt"></span>
-  <button onclick="setFilter('all')">✕ Mostrar todas</button>
-</div>
 
 <main id="list"></main>
 
@@ -1028,7 +1030,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=26; var APP_DATE='03/09/2026';
+var APP_VER=27; var APP_DATE='03/09/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
