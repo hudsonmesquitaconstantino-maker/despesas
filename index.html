@@ -1033,7 +1033,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=28; var APP_DATE='09/09/2026';
+var APP_VER=29; var APP_DATE='05/10/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1099,9 +1099,13 @@ function parseVal(str){
  if(!str) return 0;
  str=String(str).trim().replace(/R\$\s?/gi,'');
  var neg=/^-/.test(str); str=str.replace(/-/g,'');
- str=str.replace(/\./g,'').replace(',','.');
+ /* v29: "1700.50" (teclado com ponto) virava R$ 170.050,00. Agora: com vírgula = padrão BR;
+    só pontos em grupos de 3 = milhar (1.700); senão o ponto é a casa decimal. */
+ str=str.replace(/\s/g,'');
+ if(str.indexOf(',')>=0) str=str.replace(/\./g,'').replace(',','.');
+ else if(/^\d{1,3}(\.\d{3})+$/.test(str)) str=str.replace(/\./g,'');
  var n=parseFloat(str); if(isNaN(n)) n=0;
- return Math.round(n*100)*(neg?-1:1);
+ return Math.round(n*100+1e-7)*(neg?-1:1);
 }
 function rawVal(v){ return v?(v/100).toFixed(2).replace('.',','):'' }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
@@ -1333,6 +1337,7 @@ function render(){
   return x-y;
  });
 
+ var _rep={};itens().forEach(function(it){if(!it.v)return;var k=normDia(it.day)+'|'+String(it.desc||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'')+'|'+it.v;_rep[k]=(_rep[k]||0)+1});
  dias.forEach(function(d){
   var todas=itens().filter(function(it){return normDia(it.day)===d});
   var lista=todas.filter(function(it){return filter==='all'||(filter==='paid'?it.s==='paid':it.s!=='paid')})
@@ -1354,8 +1359,8 @@ function render(){
    var c=catOf(it.cat);
    html+='<div class="item'+(it.s==='paid'?' paid':'')+'">'
     +'<button class="catbtn" onclick="cycleCat(\''+it.id+'\')" title="Mudar categoria">'+c.ic+'</button>'
-    +'<input class="desc" value="'+esc(it.desc)+'" placeholder="descrição" oninput="setDesc(\''+it.id+'\',this.value)">'
-    +'<input class="val" value="'+(it.v?fmt(it.v):'')+'" placeholder="R$0,00" inputmode="text"'
+    +'<input class="desc" value="'+esc(it.desc)+'" placeholder="descrição" oninput="setDesc(\''+it.id+'\',this.value)"'+(_rep[normDia(it.day)+'|'+String(it.desc||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'')+'|'+it.v]>1?' style="box-shadow:inset 0 0 0 2px #E8A33D" title="Conta repetida: mesma descrição, dia e valor"':'')+'>'
+    +'<input class="val" value="'+(it.v?fmt(it.v):'')+'" placeholder="R$0,00" inputmode="decimal"'
       +' onfocus="this.value=rawVal2(\''+it.id+'\')"'
       +' oninput="setVal(\''+it.id+'\',this.value)"'
       +' onblur="blurVal(\''+it.id+'\',this)">'
