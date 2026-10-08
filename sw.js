@@ -1,6 +1,6 @@
-/* despesas — Service Worker seguro v30
+/* despesas — Service Worker seguro v31
    Navegação/index.html: NETWORK-FIRST; cache apenas fallback offline. */
-const CACHE='guimas-despesas-shell-v30';
+const CACHE='guimas-despesas-shell-v31';
 const PREFIX='guimas-despesas-shell-v';
 const INDEX=new URL('./index.html',self.registration.scope).href;
 self.addEventListener('install',event=>{event.waitUntil((async()=>{const c=await caches.open(CACHE);try{const r=await fetch(INDEX,{cache:'no-store'});if(r&&r.ok)await c.put(INDEX,r.clone())}catch(e){}await self.skipWaiting()})())});
