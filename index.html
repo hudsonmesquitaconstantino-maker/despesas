@@ -807,7 +807,7 @@ header{
   box-shadow:0 5px 18px rgba(25,32,40,.055);
 }
 .compactHead{align-items:center;margin-bottom:8px;gap:8px}
-.suiteBrand{flex:1;min-width:0}
+.suiteBrand{flex:1;min-width:0}.suiteEyebrow{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.syncpill{white-space:nowrap}
 .suiteEyebrow{font-size:8px;letter-spacing:1.05px;margin:0 0 2px}
 .titleMonthRow{display:flex;align-items:baseline;gap:8px;min-width:0}
 .suiteTitle{font-size:22px;line-height:1.05;font-weight:820;letter-spacing:-.7px;flex:none}
@@ -1033,7 +1033,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=35; var APP_DATE='14/10/2026';
+var APP_VER=36; var APP_DATE='15/10/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1279,6 +1279,17 @@ function load(){
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
 function save(){touch();persist();_dSetDirty(true);schedulePush()}
 
+/* v58/v36 — digitação leve: a letra entra na memória na hora; gravar/marcar pendente/enviar à
+   nuvem só quando a pessoa PARA de digitar (600 ms) ou sai do campo. Antes era um salvamento
+   completo (JSON do estado inteiro + transação na nuvem) a CADA letra — no iPhone travava o
+   teclado. Ao sair do campo, fechar ou mandar o app para o fundo, o pendente é salvo na hora. */
+var _digT=null;
+function saveDigitando(){clearTimeout(_digT);_digT=setTimeout(function(){_digT=null;save()},600)}
+function saveAgora(){if(_digT){clearTimeout(_digT);_digT=null;try{save()}catch(e){}}}
+try{document.addEventListener('focusout',function(){saveAgora()},true);
+ window.addEventListener('pagehide',saveAgora,true);
+ document.addEventListener('visibilitychange',function(){if(document.hidden)saveAgora()},true);}catch(e){}
+
 function totals(items){
  var p=0,q=0;
  items.forEach(function(it){ if(it.s==='paid') p+=it.v; else q+=it.v });
@@ -1456,8 +1467,8 @@ function find(id){return toArr(state.items).filter(function(it){return it.id===i
 function rawVal2(id){var it=find(id);return it?rawVal(it.v):''}
 function blurVal(id,el){var it=find(id);if(it)el.value=it.v?fmt(it.v):''}
 function setDay(id,v){var it=find(id);if(!it)return;it.day=normDia(v);it.at=agora();it.by=DEV;save();updateTotals()}
-function setDesc(id,v){var it=find(id);if(!it)return;it.desc=v;it.at=agora();it.by=DEV;save()}
-function setVal(id,v){var it=find(id);if(!it)return;it.v=parseVal(v);it.at=agora();it.by=DEV;save();updateLiveDerived()}
+function setDesc(id,v){var it=find(id);if(!it)return;it.desc=v;it.at=agora();it.by=DEV;saveDigitando()}
+function setVal(id,v){var it=find(id);if(!it)return;it.v=parseVal(v);it.at=agora();it.by=DEV;updateLiveDerived();saveDigitando()}
 function tgl(id){if(travado())return;var it=find(id);if(!it)return;it.s=(it.s==='paid')?'pend':'paid';it.at=agora();it.by=DEV;save();render()}
 function cycleCat(id){
  if(travado())return;
