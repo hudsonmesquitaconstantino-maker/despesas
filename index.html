@@ -1033,7 +1033,7 @@ textarea.field{min-height:90px;font-size:12px}.row{margin-top:14px}.btn{min-heig
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=38; var APP_DATE='15/10/2026';
+var APP_VER=39; var APP_DATE='20/10/2026';
 var KEY='guimas_despesas_v1';
 var SEGUROS_CARRO=[
  {d:'05',n:'Seguro Logan - GBV3B96',v:20500},
@@ -1330,6 +1330,24 @@ function byDay(a,b){
  return String(a.desc||'').localeCompare(String(b.desc||''));
 }
 
+/* Seguros da Atual: mesma ordem da lista "Faturas Atuais" do app da Atual (para conferir o pagamento
+   de cima para baixo). Os demais itens continuam em ordem alfabética. */
+var ORDEM_SEGURO_ATUAL=['RGB3E35','IXY2H87','FHP4B47','LUO2B58','PWL8H97','QEK3D83','DVS7C98','QMW8H90','QQF8J26','LSY7B47','PYO4A55','RUK6I75','AZH5D13','PZT0F79','IYZ7E28','RVX9H52','RJZ1B66','QUB5B64','LUH7G30','PVC8G42'];
+function _posSeguroAtual(it){
+ if(!it||it.cat!=='seguro')return -1;
+ var d=String(it.desc||'').toUpperCase().replace(/[\s-]/g,'');
+ for(var i=0;i<ORDEM_SEGURO_ATUAL.length;i++){if(d.indexOf(ORDEM_SEGURO_ATUAL[i])>-1)return i}
+ return -1;
+}
+function ordemItensDia(a,b){
+ var pa=_posSeguroAtual(a),pb=_posSeguroAtual(b);
+ if(pa>-1&&pb>-1)return pa-pb;
+ var ka=pa>-1?'Seguro':String(a.desc||''),kb=pb>-1?'Seguro':String(b.desc||'');
+ var c=ka.localeCompare(kb);if(c)return c;
+ if(pa>-1)return -1;if(pb>-1)return 1;
+ return String(a.desc||'').localeCompare(String(b.desc||''));
+}
+
 /* ---------- render ---------- */
 function render(){
  var _sy=0; try{_sy=window.scrollY||window.pageYOffset||document.documentElement.scrollTop||0}catch(e){}
@@ -1352,7 +1370,7 @@ function render(){
  dias.forEach(function(d){
   var todas=itens().filter(function(it){return normDia(it.day)===d});
   var lista=todas.filter(function(it){return filter==='all'||(filter==='paid'?it.s==='paid':it.s!=='paid')})
-                 .sort(function(a,b){return String(a.desc||'').localeCompare(String(b.desc||''))});
+                 .sort(ordemItensDia);
   if(!lista.length) return;
   shown+=lista.length;
   var sub=0, subPend=0;
@@ -1521,7 +1539,7 @@ function buildText(items,month){
  var blocks=[];
  dias.forEach(function(d){
   var lista=items.filter(function(it){return normDia(it.day)===d})
-                 .sort(function(a,b){return String(a.desc||'').localeCompare(String(b.desc||''))});
+                 .sort(ordemItensDia);
   if(!lista.length) return;
   var sub=0; lista.forEach(function(it){sub+=it.v});
   var lines=['*[ DIA '+(d||'--')+' - '+fmt(sub)+' ]*'];
