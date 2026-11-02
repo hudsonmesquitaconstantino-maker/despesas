@@ -1194,7 +1194,7 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=51; var APP_DATE='29/10/2026';
+var APP_VER=52; var APP_DATE='02/11/2026';
 var KEY='guimas_despesas_v1';
 /* v51: compara placas e valores por código — o dado real não fica escrito no código público */
 function _sx(n){var h=2166136261,s=String(n);for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
@@ -1859,7 +1859,7 @@ function toArr(x){
 }
 function norm(s){
  if(!s||typeof s!=='object')s={};var mes=normMonth(typeof s.month==='string'&&s.month?s.month:thisMonth()),o={migs:(s.migs&&typeof s.migs==='object'?s.migs:{}),month:mes,monthAt:Number(s.monthAt)||0,resetAt:Number(s.resetAt)||0,rev:s.rev||0,dev:s.dev||'',items:[],history:[]};
- toArr(s.items).forEach(function(it){if(!it)return;o.items.push({id:it.id||uid(),mes:normMonth(it.mes||mes),day:normDia(it.day),desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),cat:(it.cat==='fixa'||it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',s:(it.s==='paid'?'paid':'pend'),at:Number(it.at)||0,by:it.by||'',del:!!it.del,delReason:it.delReason||'',originCloseId:it.originCloseId||''})});
+ toArr(s.items).forEach(function(it){if(!it)return;o.items.push({id:it.id||uid(),mes:normMonth(it.mes||mes),day:normDia(it.day),desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),cat:(it.cat==='fixa'||it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',s:(it.s==='paid'?'paid':'pend'),at:Number(it.at)||0,by:it.by||'',del:!!it.del,delReason:it.delReason||'',originCloseId:it.originCloseId||'',gManual:!!it.gManual})});
  toArr(s.history).forEach(function(m){if(!m)return;o.history.push({id:m.id||uid(),periodKey:m.periodKey||_mesKey(m.month),month:normMonth(m.month||''),closedAt:m.closedAt||'',paid:m.paid||0,pend:m.pend||0,all:m.all||0,text:m.text||'',items:toArr(m.items),at:Number(m.at)||0,by:m.by||'',del:!!m.del,delReason:m.delReason||''})});return o;
 }
 function syncCfg(){try{return JSON.parse(localStorage.getItem('guimas_despesas_sync')||'null')}catch(e){return null}}
@@ -2439,6 +2439,99 @@ var G21_LOGO="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQDAwQ
   agenda();setTimeout(agenda,400);setTimeout(agenda,1500);
  }
  if(document.readyState==='complete')liga();else window.addEventListener('load',liga);
+})();
+
+</script>
+<script>
+var PIX_CFG={"sel": "input.val, #adVal", "teclado": true};
+/* ===================== VALOR EM REAIS IGUAL AO PIX DO BANCO (Hudson 30/10/2026) =====================
+   Nos campos de dinheiro você só digita os números; os dois últimos viram os centavos e o ponto de milhar
+   entra sozinho: 1 → 0,01 · 10018 → 100,18 · 150000 → 1.500,00. Apagar tira o último número.
+   - Vírgula e ponto digitados por costume são ignorados ("50,00" continua dando 50,00).
+   - Colar um valor ("R$ 1.234,56" ou "1234") entende o valor do jeito de sempre.
+   - Ao tocar num campo que já tem valor, ele aparece completo (ex.: "120" vira "120,00") para continuar daí.
+   - Onde existe valor negativo (desconto), o sinal de menos liga/desliga o negativo.
+   Só muda a DIGITAÇÃO: o valor que o app guarda é o mesmo de antes. */
+(function(){
+ if(window._pixMoeda)return;window._pixMoeda=1;
+ var CFG=window.PIX_CFG||{};var SEL=CFG.sel||'input[inputmode="decimal"]',NEG=CFG.neg||'';
+ function eh(el){try{return !!el&&el.tagName==='INPUT'&&!el.readOnly&&!el.disabled&&el.type!=='date'&&el.matches(SEL)}catch(e){return false}}
+ function podeNeg(el){try{return !!NEG&&el.matches(NEG)}catch(e){return false}}
+ function fmt(dg){dg=String(dg).replace(/^0+/,'');while(dg.length<3)dg='0'+dg;var i=dg.slice(0,-2).replace(/\B(?=(\d{3})+(?!\d))/g,'.');return i+','+dg.slice(-2)}
+ /* valor escrito do jeito antigo ("120", "1.700", "550.50", "R$ 1.234,56") -> centavos */
+ function centavos(v){var s=String(v||'').replace(/R\$\s?/gi,'').replace(/\s/g,'').replace(/-/g,'');if(!/\d/.test(s))return null;
+  if(s.indexOf(',')>=0)s=s.replace(/\./g,'').replace(',','.');else if(/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');
+  var n=parseFloat(s.replace(/[^\d.]/g,''));return isFinite(n)?Math.round(n*100):null}
+ function poe(el,nv){if(el.value===nv)return;el.value=nv;try{el.setSelectionRange(nv.length,nv.length)}catch(e){}}
+ function normaliza(el){var v=el.value;if(!v||!/\d/.test(v))return;var c=centavos(v);if(c==null)return;var neg=podeNeg(el)&&/^\s*-/.test(v);poe(el,(neg?'-':'')+fmt(String(c)))}
+ /* ao entrar no campo: mostra o valor completo (antes do app reagir ao foco) */
+ document.addEventListener('focus',function(e){var el=e.target;if(eh(el))normaliza(el)},true);
+ document.addEventListener('input',function(e){var el=e.target;if(!eh(el))return;var v=el.value,neg=podeNeg(el)&&((v.match(/-/g)||[]).length%2===1);
+  if(e.inputType==='insertFromPaste'||e.inputType==='insertReplacementText'){var c=centavos(v);poe(el,c==null?'':(neg?'-':'')+fmt(String(c)));return}
+  var dg=v.replace(/\D/g,'').replace(/^0+/,'');if(dg.length>11)dg=dg.slice(0,11);
+  poe(el,dg?(neg?'-':'')+fmt(dg):(neg?'-':''))},true);
+ /* teclado numérico nos campos de dinheiro que ainda abriam o teclado de letras */
+ function teclado(r){try{[].forEach.call((r||document).querySelectorAll(SEL),function(el){if(!podeNeg(el)&&el.getAttribute('inputmode')!=='decimal')el.setAttribute('inputmode','decimal')})}catch(e){}}
+ if(CFG.teclado){teclado();try{new MutationObserver(function(ms){for(var i=0;i<ms.length;i++)if(ms[i].addedNodes.length){teclado();return}}).observe(document.documentElement,{childList:true,subtree:true})}catch(e){}}
+ window._pixFmt=fmt;window._pixCentavos=centavos;
+})();
+
+</script>
+<script>
+/* ===================== v52 — LUCAS E VINÍCIUS MECÂNICO PELO GESTÃO (Hudson 02/11/2026) =====================
+   Nos ACERTOS do mês, "Lucas mecânico" e "Vinicius mecânico" pegam sozinhos o valor do fechamento do
+   Gestão da FROTA FÁBIO naquele mês (peças + mão de obra lançadas para cada um; as da frota do Hudson ficam de fora).
+   - O valor se atualiza sozinho quando lançam manutenção no Gestão.
+   - Você pode digitar outro valor: aí vale o seu (aparece "✎ valor seu"). Apagou o valor = volta para o do Gestão.
+   - Depois de marcado como PAGO ✅, o valor não muda mais.
+   - Só lê o Gestão; não grava nada lá. */
+var DGEST={cache:null,at:0,busy:false,erro:''};
+function _dgSem(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'')}
+function _dgMec(desc){var k=_dgSem(desc);if(k.indexOf('vinicius')>=0)return 'vinicius';if(k.indexOf('lucas')>=0)return 'lucas';return ''}
+function _dgYm(mes){var p=String(normMonth(mes||'')).split('/'),i=mIndex(p[0]),y=parseInt(p[1],10);return (i<0||isNaN(y))?'':y+'-'+('0'+(i+1)).slice(-2)}
+function _dgR2(v){v=Number(v)||0;return Math.round(v*100+(v>=0?1e-7:-1e-7))/100}
+/* mesma regra do fechamento por fornecedor do Gestão (data de cada peça / serviço; frota escolhida no lançamento) */
+function _dgTotais(g,ym){
+ var tot={lucas:0,vinicius:0},cs=g.carros||{},ap=g.apagados||{};
+ Object.keys(g.manutencoes||{}).forEach(function(id){var m=g.manutencoes[id];if(!m||typeof m!=='object')return;
+  var t=Number(ap[id])||0;if(t&&t>=(Number(m.editadoEm)||Number(m.criadoEm)||0)&&!(Number(m.restauradoEm)>t))return;
+  var car=cs[m.carro]||null,leg=(m.dataFim||m.dataIni)||'',ff=m.frotaFechamento||'';
+  var pessoal=ff==='hudson'?true:(ff==='fabio'?false:!!(car&&car.meuCarro));if(pessoal)return;
+  function add(nome,v,d){v=_dgR2(v);if(!v||String(d||'').slice(0,7)!==ym)return;var mec=_dgMec(nome);if(mec)tot[mec]+=Math.round(v*100)}
+  toArr(m.pecas).forEach(function(p){if(p&&!p.pendenteFinanceiro)add(p.loja||'',p.valor,p.data||m.dataPecasPadrao||leg)});
+  toArr(m.blocos).forEach(function(b){if(b&&!b.pendenteFinanceiro)add(b.nome||b.titulo||'',b.valor,b.dataFim||b.dataIni||leg)});
+ });
+ return tot}
+function _dgItemFocado(id){var a=document.activeElement;return !!(a&&a.tagName==='INPUT'&&String(a.getAttribute('oninput')||'').indexOf("'"+id+"'")>=0)}
+function dgAplica(){
+ if(!DGEST.cache||!state)return;var ym=_dgYm(state.month);if(!ym)return;
+ var tot=_dgTotais(DGEST.cache,ym),mud=false;
+ itens().forEach(function(it){if(it.cat!=='outros'||it.s==='paid'||it.gManual)return;var mec=_dgMec(it.desc);if(!mec||_dgItemFocado(it.id))return;
+  var v=tot[mec]||0;if(it.v!==v){it.v=v;it.at=agora();it.by=DEV;mud=true}});
+ if(mud){save();render()}else dgMarca()}
+function dgLer(forca){
+ if(DGEST.busy||!SYNC||!SYNC.ref||!SYNC.gotRemote)return;if(!forca&&DGEST.cache&&Date.now()-DGEST.at<120000){dgAplica();return}
+ DGEST.busy=true;var raiz=SYNC.ref.parent;
+ Promise.all([raiz.child('gestao/manutencoes').once('value'),raiz.child('gestao/carros').once('value'),raiz.child('gestao/apagados').once('value')]).then(function(r){
+  var g={manutencoes:r[0].val()||{},carros:r[1].val()||{},apagados:r[2].val()||{}};DGEST.busy=false;
+  /* proteção: leitura vazia/incompleta do Gestão não zera valor nenhum */
+  if(Object.keys(g.carros).length<3||!Object.keys(g.manutencoes).length){DGEST.erro='vazio';return}
+  DGEST.cache=g;DGEST.at=Date.now();DGEST.erro='';dgAplica();
+ }).catch(function(e){DGEST.busy=false;DGEST.erro=String(e&&e.message||e)})}
+/* mostra de onde veio o valor */
+function dgMarca(){try{var ym=_dgYm(state.month);document.querySelectorAll('#list .item').forEach(function(el){el.classList.remove('gAuto','gMan')});
+ itens().forEach(function(it){if(it.cat!=='outros'||!_dgMec(it.desc))return;var inp=document.querySelector('#list input.val[oninput*="\''+it.id+'\'"]');var row=inp&&inp.closest('.item');if(!row)return;
+  row.classList.add(it.gManual?'gMan':'gAuto');row.title=it.gManual?'Valor digitado por você. Apague o valor para voltar ao do Gestão.':'Valor do fechamento do Gestão (frota Fábio) de '+(state.month||'');})}catch(e){}}
+(function(){
+ var r=window.render;if(typeof r==='function'&&!r._dg){var w=function(){var x=r.apply(this,arguments);dgMarca();return x};w._dg=1;window.render=w}
+ var sv=window.setVal;if(typeof sv==='function'&&!sv._dg){var w2=function(id,v){var it=find(id);if(it&&it.cat==='outros'&&_dgMec(it.desc)&&it.s!=='paid')it.gManual=/\d/.test(String(v||''))&&parseVal(v)!==0;return sv.apply(this,arguments)};w2._dg=1;window.setVal=w2}
+ var bv=window.blurVal;if(typeof bv==='function'&&!bv._dg){var w3=function(id){var r=bv.apply(this,arguments);var it=find(id);if(it&&!it.gManual&&it.cat==='outros'&&_dgMec(it.desc))setTimeout(dgAplica,50);else dgMarca();return r};w3._dg=1;window.blurVal=w3}
+ var sd=window.setDesc;if(typeof sd==='function'&&!sd._dg){var w4=function(){var r=sd.apply(this,arguments);clearTimeout(DGEST.td);DGEST.td=setTimeout(dgAplica,1500);return r};w4._dg=1;window.setDesc=w4}
+ var cc=window.cycleCat;if(typeof cc==='function'&&!cc._dg){var w5=function(){var r=cc.apply(this,arguments);setTimeout(dgAplica,50);return r};w5._dg=1;window.cycleCat=w5}
+ var orr=window.onRemote;if(typeof orr==='function'&&!orr._dg){var w6=function(){var r=orr.apply(this,arguments);setTimeout(function(){dgLer(false)},400);return r};w6._dg=1;window.onRemote=w6}
+ setInterval(function(){if(document.visibilityState==='visible')dgLer(true)},180000);
+ document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')setTimeout(function(){dgLer(true)},800)});
+ try{var st=document.createElement('style');st.textContent='.item.gAuto,.item.gMan{position:relative;padding-bottom:13px}.item.gAuto::after,.item.gMan::after{position:absolute;left:44px;bottom:1px;font-size:10px;font-weight:700;letter-spacing:.2px;pointer-events:none}.item.gAuto::after{content:"↻ do Gestão · frota Fábio";color:#2F8A57}.item.gMan::after{content:"✎ valor seu · apague para voltar ao Gestão";color:#9A6A12}';document.head.appendChild(st)}catch(e){}
 })();
 
 </script>
