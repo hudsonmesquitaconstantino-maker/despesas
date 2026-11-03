@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Despesas">
 <meta name="theme-color" content="#000000">
 <link rel="apple-touch-icon" sizes="512x512" href="icone.png">
@@ -1194,7 +1194,7 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=54; var APP_DATE='03/11/2026';
+var APP_VER=55; var APP_DATE='03/11/2026';
 var KEY='guimas_despesas_v1';
 /* v51: compara placas e valores por código — o dado real não fica escrito no código público */
 function _sx(n){var h=2166136261,s=String(n);for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
@@ -2541,6 +2541,122 @@ function dgMarca(){try{var ym=_dgYm(state.month);document.querySelectorAll('#lis
 
 </script>
 <style id="modoEscuro">
+/* camada automática: toda regra clara do app ganha a versão escura */
+header{background-color:rgba(44,44,46,0.94)}
+.htitle input:focus{background-color:#1C1C1E}
+.lockpill{border-color:rgba(255,105,94,.40)}
+.lockpill.open{border-color:rgba(48,209,88,.40)}
+.syncpill{background-color:#2C2C2E}
+.syncpill.wait{color:#FFB340}
+.tot{background-color:#1C1C1E}
+.filterbar button{background-color:#1C1C1E}
+.cat{background-color:#1C1C1E}
+.item input{background-color:#1C1C1E}
+.item input:focus{background-color:#1C1C1E}
+.chk{border-color:rgba(255,105,94,.40)}
+.chk.ok{border-color:rgba(48,209,88,.40)}
+.cat.done{background-color:#1C1C1E;border-color:rgba(48,209,88,.40)}
+.addBig{background-color:#1C1C1E}
+.bottom{background-color:#2C2C2E}
+.bottom button{background-color:#1C1C1E}
+.sheet{background-color:#1C1C1E}
+.sheet .close{background-color:#2C2C2E}
+.field,textarea.field{background-color:#1C1C1E}
+.field:focus{background-color:#1C1C1E}
+.btn{background-color:#1C1C1E}
+.btn.ghost{background-color:#2C2C2E}
+.btn.danger{border-color:rgba(255,105,94,.40)}
+.menu button{background-color:#1C1C1E}
+.catpick button{background-color:#1C1C1E}
+.mini{background-color:#2C2C2E}
+.histItem pre{background-color:#2C2C2E}
+header{background-color:rgba(44,44,46,0.88)}
+.htitle input:focus{background-color:rgba(28,28,30,0.90)}
+.lockpill{background-color:#2C2C2E;border-color:rgba(255,105,94,.40)}
+.lockpill.open{background-color:#2C2C2E;border-color:rgba(48,209,88,.40)}
+.syncpill{background-color:rgba(28,28,30,0.78)}
+.tot{background-color:rgba(28,28,30,0.93)}
+.filterbar{background-color:rgba(44,44,46,0.92)}
+.filterbar button{background-color:rgba(28,28,30,0.75)}
+.cat{background-color:#1C1C1E}
+.cat.done{background:#1C1C1E;border-color:rgba(48,209,88,.40)}
+.cat h2 .sub{color:#F5F5F7}
+.okTag{background-color:#2C2C2E}
+.item input{background-color:#2C2C2E}
+.item input:focus{background-color:#1C1C1E}
+.item .desc{color:#F5F5F7}
+.item .catbtn{background-color:#2C2C2E}
+.chk{border-color:rgba(255,105,94,.40);background-color:#2C2C2E}
+.chk.ok{background-color:#2C2C2E;border-color:rgba(48,209,88,.40)}
+.addLine{border-color:#3A3A3C;background-color:#1C1C1E}
+.addBig{background-color:#1C1C1E}
+.resline span:last-child{color:#F5F5F7}
+.insuranceBreakdown{background-color:rgba(28,28,30,0.72)}
+.insuranceDay .lab{color:#A1A1A8}
+.insuranceDay .val{color:#F5F5F7}
+.bottom{background-color:rgba(28,28,30,0.86)}
+.bottom button{background-color:#2C2C2E}
+.sheet{border-color:#3A3A3C;background-color:#1C1C1E}
+.sheet:before{background-color:#3A3A3C}
+.sheet .close{background-color:#2C2C2E;color:#A1A1A8}
+.sheet .close:active{background-color:#2C2C2E}
+.askMsg{color:#A1A1A8}
+.field,textarea.field{background-color:#1C1C1E}
+.field:focus{background-color:#1C1C1E}
+.btn{background-color:#2C2C2E}
+.btn.ghost{background-color:#2C2C2E;color:#A1A1A8}
+.btn.danger{background-color:#2C2C2E}
+.catpick{background-color:#2C2C2E}
+.catpick button{color:#A1A1A8}
+.catpick button.sel{background-color:#1C1C1E;color:#F5F5F7}
+.menu button:not(.close){background-color:#2C2C2E;color:#F5F5F7}
+.menu button:not(.close):active{background-color:#2C2C2E}
+.histItem{background-color:#1C1C1E}
+.histItem .tt{color:#F5F5F7}
+.mini{background-color:#2C2C2E}
+.mini.danger{background-color:#2C2C2E}
+.histItem pre{background-color:#2C2C2E}
+body{background:#2C2C2E}
+header{background-color:rgba(28,28,30,0.90)}
+.suiteTitle{color:#F5F5F7}
+.lockpill{background-color:rgba(28,28,30,0.82)}
+.syncpill{background-color:rgba(28,28,30,0.82)}
+.monthCard{background-color:rgba(28,28,30,0.80)}
+#monthLabel{color:#F5F5F7}
+#monthLabel:focus{background-color:#2C2C2E}
+.tot{background-color:rgba(28,28,30,0.92)}
+.tot.totalMaster:after{color:#F5F5F7}
+.tot .vl{color:#F5F5F7}
+.tot.g{background:#1C1C1E}
+.tot.r{background:#1C1C1E}
+.cat{background-color:#1C1C1E}
+.cat.done{background:#1C1C1E}
+.cat h2{background-color:rgba(28,28,30,0.72)}
+.cat.done h2{background-color:rgba(28,28,30,0.78)}
+.cat h2 .sub{color:#F5F5F7}
+.dayline .okTag,.okTag{background-color:#2C2C2E}
+.item .catbtn{background-color:#2C2C2E}
+.item .desc{color:#F5F5F7}
+.addLine{background-color:#1C1C1E}
+.addBig{background-color:rgba(28,28,30,0.90)}
+.bottom .menuBtn{color:#A1A1A8;background-color:#2C2C2E}
+.sheet .close{background-color:#2C2C2E}
+.field,textarea.field{background-color:#2C2C2E}
+.menu button:not(.close){background-color:#2C2C2E}
+header{background-color:rgba(28,28,30,0.94)}
+#monthLabel{color:#A1A1A8}
+#monthLabel:focus{background-color:#1C1C1E}
+.bottom .lockpill{background-color:#2C2C2E;border-color:rgba(255,105,94,.40)}
+.bottom .lockpill.open{background-color:#2C2C2E;border-color:rgba(48,209,88,.40)}
+html.af body>header.afHead{background-color:rgba(44,44,46,0.82)!important}
+.syncpill{background-color:rgba(28,28,30,0.85)!important}
+html.af body>.afBar{background-color:rgba(28,28,30,0.74)!important}
+.bottombar .btn.ghost,.bottom .menuBtn{background-color:#1C1C1E!important}
+.g21segmk{background-color:#1C1C1E}
+.item.gAuto::after{color:#30D158}
+.item.gMan::after{color:#FFB340}
+.item.gExc::after{color:#FF695E}
+
 /* ===================== MODO ESCURO (padrão iPhone) — Hudson 03/11/2026 =====================
    Camada única no fim do app: só cor, fundo e sombra. Não mexe em dado, função nem layout.
    Paleta igual em todos os apps: fundo preto, cartões #1C1C1E, campos #2C2C2E, texto branco/cinza, âmbar, verde, vermelho do iOS. */
