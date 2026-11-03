@@ -1194,7 +1194,7 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=52; var APP_DATE='02/11/2026';
+var APP_VER=53; var APP_DATE='02/11/2026';
 var KEY='guimas_despesas_v1';
 /* v51: compara placas e valores por código — o dado real não fica escrito no código público */
 function _sx(n){var h=2166136261,s=String(n);for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
@@ -2518,8 +2518,13 @@ function dgLer(forca){
   if(Object.keys(g.carros).length<3||!Object.keys(g.manutencoes).length){DGEST.erro='vazio';return}
   DGEST.cache=g;DGEST.at=Date.now();DGEST.erro='';dgAplica();
  }).catch(function(e){DGEST.busy=false;DGEST.erro=String(e&&e.message||e)})}
+/* v53: conta que cita a placa de um carro EXCLUÍDO no Gestão ganha um aviso (não some sozinha: pode ser conta que ainda vence) */
+function _dgPl(p){return String(p||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
+function dgExcluidas(){var g=DGEST.cache;if(!g)return [];var idx={};Object.keys(g.carros||{}).forEach(function(k){var c=g.carros[k];if(c)idx[_dgPl(c.placa||k)]=1});
+ return Object.keys(g.apagados||{}).filter(function(k){return k.indexOf('car_')===0}).map(function(k){return k.slice(4)}).filter(function(p){return /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(p)&&!idx[p]})}
 /* mostra de onde veio o valor */
-function dgMarca(){try{var ym=_dgYm(state.month);document.querySelectorAll('#list .item').forEach(function(el){el.classList.remove('gAuto','gMan')});
+function dgMarca(){try{var ym=_dgYm(state.month);document.querySelectorAll('#list .item').forEach(function(el){el.classList.remove('gAuto','gMan','gExc')});
+ var exc=dgExcluidas();if(exc.length)itens().forEach(function(it){var t=_dgPl(it.desc);if(!exc.some(function(p){return t.indexOf(p)>=0}))return;var inp=document.querySelector('#list input.val[oninput*="\''+it.id+'\'"]');var row=inp&&inp.closest('.item');if(row){row.classList.add('gExc');row.title='Esta conta cita um carro que foi excluído no Gestão. Confira se ainda precisa pagar; se não, apague a conta.'}});
  itens().forEach(function(it){if(it.cat!=='outros'||!_dgMec(it.desc))return;var inp=document.querySelector('#list input.val[oninput*="\''+it.id+'\'"]');var row=inp&&inp.closest('.item');if(!row)return;
   row.classList.add(it.gManual?'gMan':'gAuto');row.title=it.gManual?'Valor digitado por você. Apague o valor para voltar ao do Gestão.':'Valor do fechamento do Gestão (frota Fábio) de '+(state.month||'');})}catch(e){}}
 (function(){
@@ -2531,7 +2536,7 @@ function dgMarca(){try{var ym=_dgYm(state.month);document.querySelectorAll('#lis
  var orr=window.onRemote;if(typeof orr==='function'&&!orr._dg){var w6=function(){var r=orr.apply(this,arguments);setTimeout(function(){dgLer(false)},400);return r};w6._dg=1;window.onRemote=w6}
  setInterval(function(){if(document.visibilityState==='visible')dgLer(true)},180000);
  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')setTimeout(function(){dgLer(true)},800)});
- try{var st=document.createElement('style');st.textContent='.item.gAuto,.item.gMan{position:relative;padding-bottom:13px}.item.gAuto::after,.item.gMan::after{position:absolute;left:44px;bottom:1px;font-size:10px;font-weight:700;letter-spacing:.2px;pointer-events:none}.item.gAuto::after{content:"↻ do Gestão · frota Fábio";color:#2F8A57}.item.gMan::after{content:"✎ valor seu · apague para voltar ao Gestão";color:#9A6A12}';document.head.appendChild(st)}catch(e){}
+ try{var st=document.createElement('style');st.textContent='.item.gAuto,.item.gMan{position:relative;padding-bottom:13px}.item.gAuto::after,.item.gMan::after{position:absolute;left:44px;bottom:1px;font-size:10px;font-weight:700;letter-spacing:.2px;pointer-events:none}.item.gAuto::after{content:"↻ do Gestão · frota Fábio";color:#2F8A57}.item.gMan::after{content:"✎ valor seu · apague para voltar ao Gestão";color:#9A6A12}.item.gExc{position:relative;padding-bottom:13px}.item.gExc::after{position:absolute;left:44px;bottom:1px;font-size:10px;font-weight:700;content:"🚫 carro excluído no Gestão · confira se ainda paga";color:#B42318;pointer-events:none}';document.head.appendChild(st)}catch(e){}
 })();
 
 </script>
