@@ -1109,8 +1109,9 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
     <div class="lbl">Valor</div>
     <input class="field" id="adVal" inputmode="text" placeholder="ex.: 205,00">
     <div class="lbl">Categoria</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">💸 PIX é a única categoria que não é levada para o mês seguinte. Fixas e seguros mantêm o valor; cartões e acertos continuam zerados.</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">💸 PIX não é levado para o mês seguinte (só os marcados "Toda quarta-feira", que entram em todas as quartas). Fixas e seguros mantêm o valor; cartões e acertos continuam zerados.</div>
     <div class="catpick" id="adCats"></div>
+    <div id="adSemBox"></div>
     <div class="row">
       <button class="btn ghost" onclick="document.getElementById('ovAdd').classList.remove('open')">Cancelar</button>
       <button class="btn primary" onclick="saveAdd()">Salvar</button>
@@ -1194,7 +1195,7 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=58; var APP_DATE='03/11/2026';
+var APP_VER=59; var APP_DATE='04/11/2026';
 var KEY='guimas_despesas_v1';
 /* v51: compara placas e valores por código — o dado real não fica escrito no código público */
 function _sx(n){var h=2166136261,s=String(n);for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
@@ -1202,7 +1203,7 @@ function _sx(n){var h=2166136261,s=String(n);for(var i=0;i<s.length;i++){h^=s.ch
 function _sxJanelas(d){var o={};for(var i=0;i+7<=d.length;i++)o[_sx(d.substr(i,7))]=1;return o}
 var SEGUROS_CARRO=[]; /* v51: lista antiga (placas e valores) removida — a conversão já foi feita (marca seg1) */
 var CATS=[{k:'fixa',n:'FIXAS',ic:'📌'},{k:'seguro',n:'SEGUROS',ic:'🛡'},{k:'cartao',n:'CARTÕES',ic:'💳'},{k:'outros',n:'ACERTOS',ic:'🤝'},{k:'pix',n:'PIX',ic:'💸'}];
-var state=null, filter='all', askCb=null, EH_ID=null, AD_ID=null, AD_CAT='seguro';
+var state=null, filter='all', askCb=null, EH_ID=null, AD_ID=null, AD_CAT='seguro', AD_SEM=false;
 var LOCK=true; // proteção: o app SEMPRE abre travado
 function toggleLock(){
  if(LOCK){
@@ -1636,7 +1637,7 @@ function openAdd(id,cat,day){
  if(travado())return;
  AD_ID=id||null;
  var it=id?find(id):null;
- AD_CAT=it?it.cat:(cat||'outros');
+ AD_CAT=it?it.cat:(cat||'outros');AD_SEM=!!(it&&it.semanal);
  document.getElementById('addTitle').textContent=it?'Editar despesa':'Nova despesa';
  document.getElementById('adDay').value=it?it.day:(day||'');
  document.getElementById('adDesc').value=it?it.desc:'';
@@ -1644,11 +1645,27 @@ function openAdd(id,cat,day){
  renderCatPick();
  document.getElementById('ovAdd').classList.add('open');
 }
+
+/* v59 (Hudson 04/11): PIX semanal — repasse que cai toda quarta-feira (ex.: o de cada filho/esposa).
+   Marca "Toda quarta-feira" num PIX e o app cria uma linha para CADA quarta do mês; ao fechar o mês,
+   cria todas as quartas do mês seguinte sozinho. Nomes e valores ficam só nos dados (nuvem), nunca no código. */
+function quartasDoMes(mes){var p=String(mes||'').split('/'),i=mIndex(p[0]),y=parseInt(p[1],10),out=[];if(i<0||isNaN(y))return out;
+ for(var d=1;d<=31;d++){var dt=new Date(y,i,d);if(dt.getMonth()!==i)break;if(dt.getDay()===3)out.push(('0'+d).slice(-2))}return out}
+function _semId(serie,mes,dd){return 'sem_'+String(serie).replace(/[^A-Za-z0-9]/g,'')+'_'+String(mes).replace(/[^A-Za-z0-9]/g,'')+'_'+dd}
+/* modelo da série para o mês seguinte: valor mais repetido no mês (uma semana diferente não muda as próximas) e a descrição mais recente */
+function _semModelo(lista){var cont={},best=null,bc=0,ult=null;lista.forEach(function(it){var k=String(it.v);cont[k]=(cont[k]||0)+1;if(cont[k]>bc||(cont[k]===bc&&parseInt(it.day,10)>parseInt(best.day,10))){bc=cont[k];best=it}if(!ult||(Number(it.at)||0)>(Number(ult.at)||0))ult=it});return {v:best?best.v:0,desc:ult?ult.desc:''}}
+/* cria as quartas que faltam de uma série num mês (não recria uma semana que você apagou) */
+function gerarQuartas(st,serie,mes,desc,v,ts){var n=0,items=toArr(st.items);quartasDoMes(mes).forEach(function(dd){
+  var id=_semId(serie,mes,dd);if(items.some(function(x){return x&&x.id===id}))return;
+  var ja=items.some(function(x){return x&&!x.del&&normMonth(x.mes||st.month)===normMonth(mes)&&x.day===dd&&((x.serie&&x.serie===serie)||(x.cat==='pix'&&String(x.desc||'').trim().toLowerCase()===String(desc||'').trim().toLowerCase()))});if(ja)return;
+  st.items.push({id:id,mes:mes,day:dd,desc:desc,v:v,cat:'pix',s:'pend',at:ts,by:DEV,del:false,semanal:true,serie:serie});items=toArr(st.items);n++});return n}
 function renderCatPick(){
  document.getElementById('adCats').innerHTML=CATS.map(function(c){
   return '<button class="'+(AD_CAT===c.k?'sel':'')+'" onclick="AD_CAT=\''+c.k+'\';renderCatPick()">'+c.ic+' '+c.n+'</button>';
  }).join('');
+ var b=document.getElementById('adSemBox');if(b)b.innerHTML=AD_CAT==='pix'?'<button type="button" class="semTgl'+(AD_SEM?' on':'')+'" onclick="AD_SEM=!AD_SEM;renderCatPick()"><span class="semChk">'+(AD_SEM?'✓':'')+'</span><span><b>🔁 Toda quarta-feira</b><small>'+(AD_SEM?'Entra em todas as quartas deste mês ('+quartasDoMes(state.month).map(function(d){return +d}).join(', ')+') e, ao fechar o mês, em todas as do mês seguinte.':'Toque para repetir este PIX em todas as quartas do mês.')+'</small></span></button>':'';
 }
+var _semMsg='';
 function saveAdd(){
  var day=normDia(document.getElementById('adDay').value);
  var desc=(document.getElementById('adDesc').value||'').trim();
@@ -1656,14 +1673,20 @@ function saveAdd(){
  if(!desc){toast('⚠️ Escreva a descrição');return}
  if(AD_ID){
   var it=find(AD_ID);
-  if(it){it.day=day;it.desc=desc;it.v=v;it.cat=AD_CAT;it.at=agora();it.by=DEV}
+  if(it){var eraSem=!!it.semanal;it.day=day;it.desc=desc;it.v=v;it.cat=AD_CAT;it.at=agora();it.by=DEV;
+   var querSem=AD_SEM&&AD_CAT==='pix';
+   if(querSem){if(!it.serie)it.serie=uid()+uid();it.semanal=true;var ns=gerarQuartas(state,it.serie,state.month,desc,v,agora());if(!eraSem)_semMsg=ns?'🔁 Toda quarta: +'+ns+' semana'+(ns>1?'s':'')+' neste mês':'🔁 Toda quarta-feira ligado'}
+   else if(eraSem){var se=it.serie;itens().forEach(function(x){if(x.serie&&x.serie===se){x.semanal=false;x.at=agora();x.by=DEV}});it.semanal=false;_semMsg='Não repete mais toda quarta (as semanas deste mês ficam)'}}
  }else{
-  state.items.push({id:uid(),mes:state.month,day:day,desc:desc,v:v,cat:AD_CAT,s:'pend',at:agora(),by:DEV,del:false});
+  var novo={id:uid(),mes:state.month,day:day,desc:desc,v:v,cat:AD_CAT,s:'pend',at:agora(),by:DEV,del:false};
+  if(AD_SEM&&AD_CAT==='pix'){novo.semanal=true;novo.serie=uid()+uid()}
+  state.items.push(novo);
+  if(novo.semanal){var ns2=gerarQuartas(state,novo.serie,state.month,desc,v,agora());_semMsg='🔁 Toda quarta: '+(ns2+1)+' linha'+(ns2?'s':'')+' neste mês'}
  }
  save();
  document.getElementById('ovAdd').classList.remove('open');
  render();
- toast(AD_ID?'Despesa atualizada ✓':'Despesa adicionada ✓');
+ toast(_semMsg||(AD_ID?'Despesa atualizada ✓':'Despesa adicionada ✓'));_semMsg='';
 }
 
 /* ---------- texto para WhatsApp ---------- */
@@ -1720,8 +1743,8 @@ function _dItensAtivos(st){return toArr(st&&st.items).filter(function(x){return 
 function closeMonth(){
  if(travado())return;if(!itens().length){toast('⚠️ Nenhuma despesa neste mês');return}
  var atuais=itens(),tt=totals(atuais),abertas=atuais.filter(function(it){return it.s!=='paid'}).length;
- var nFix=atuais.filter(function(it){return it.cat==='fixa'||it.cat==='seguro'}).length,nZero=atuais.filter(function(it){return it.cat==='cartao'||it.cat==='outros'}).length,nPix=atuais.filter(function(it){return it.cat==='pix'}).length,mesEsperado=state.month;
- ask('Fechar '+mesEsperado,'Total: '+fmt(tt.all)+'\nPago: '+fmt(tt.paid)+'\nFicou em aberto: '+fmt(tt.pend)+(abertas?' ('+abertas+' conta'+(abertas>1?'s':'')+')':'')+'\n\nO app vai conferir a nuvem antes de fechar. No próximo mês:'+(nFix?'\n• '+nFix+' fixa'+(nFix>1?'s':'')+'/seguro'+(nFix>1?'s':'')+' continua'+(nFix>1?'m':'')+' com o MESMO valor.':'')+(nZero?'\n• Cartões e acertos continuam com R$0,00.':'')+(nPix?'\n• PIX não é levado para o mês seguinte.':''),'Fechar mês',function(){
+ var nFix=atuais.filter(function(it){return it.cat==='fixa'||it.cat==='seguro'}).length,nZero=atuais.filter(function(it){return it.cat==='cartao'||it.cat==='outros'}).length,nPix=atuais.filter(function(it){return it.cat==='pix'&&!it.semanal}).length,mesEsperado=state.month;
+ ask('Fechar '+mesEsperado,'Total: '+fmt(tt.all)+'\nPago: '+fmt(tt.paid)+'\nFicou em aberto: '+fmt(tt.pend)+(abertas?' ('+abertas+' conta'+(abertas>1?'s':'')+')':'')+'\n\nO app vai conferir a nuvem antes de fechar. No próximo mês:'+(nFix?'\n• '+nFix+' fixa'+(nFix>1?'s':'')+'/seguro'+(nFix>1?'s':'')+' continua'+(nFix>1?'m':'')+' com o MESMO valor.':'')+(nZero?'\n• Cartões e acertos continuam com R$0,00.':'')+(function(){var se={};atuais.forEach(function(it){if(it.cat==='pix'&&it.semanal&&it.serie)se[it.serie]=1});var n=Object.keys(se).length,q=quartasDoMes(nextMonth(mesEsperado)).length;return n?'\n• '+n+' PIX de toda quarta-feira: entra'+(n>1?'m':'')+' nas '+q+' quartas de '+nextMonth(mesEsperado).split('/')[0].toLowerCase()+'.':''})()+(nPix?'\n• Os outros PIX não são levados para o mês seguinte.':''),'Fechar mês',function(){
   var ts=_dAg(),novoMes=nextMonth(mesEsperado),closeId='close_'+_mesKey(mesEsperado).replace(/[^A-Za-z0-9]/g,'_')+'_'+ts;
   _dCritTxn('Fechar mês',function(base){
    if(normMonth(base.month)!==normMonth(mesEsperado))return 'Outro aparelho mudou o mês para '+base.month+'. Revise antes de fechar.';
@@ -1729,6 +1752,8 @@ function closeMonth(){
    var cur=_dItensAtivos(base),t=totals(cur),snap=JSON.parse(JSON.stringify(cur));base.history.unshift({id:closeId,periodKey:pk,month:mesEsperado,closedAt:stamp(),paid:t.paid,pend:t.pend,all:t.all,text:buildText(snap,mesEsperado),items:snap,at:ts,by:DEV,del:false,delReason:''});
    cur.forEach(function(it){it.del=true;it.delReason='rollover';it.at=ts;it.by=DEV});
    cur.forEach(function(it){if(it.cat==='pix')return;var carryId='carry_'+String(it.id||'rec').replace(/[^A-Za-z0-9_-]/g,'')+'_'+String(novoMes||'').replace(/[^A-Za-z0-9]/g,'');var nv=(it.cat==='fixa'||it.cat==='seguro')?it.v:0;if(!toArr(base.items).some(function(x){return x&&x.id===carryId&&!x.del}))base.items.push({id:carryId,mes:novoMes,day:it.day,desc:it.desc,v:nv,cat:it.cat,s:'pend',at:ts,by:DEV,del:false,delReason:'',originCloseId:closeId})});
+   var series={};cur.forEach(function(it){if(it.cat==='pix'&&it.semanal&&it.serie)(series[it.serie]=series[it.serie]||[]).push(it)});
+   Object.keys(series).forEach(function(se){var md=_semModelo(series[se]);gerarQuartas(base,se,novoMes,md.desc,md.v,ts)});
    base.month=novoMes;base.monthAt=ts;return true;
   },mesEsperado+' fechado com conferência da nuvem ✓');
  });
@@ -1859,7 +1884,7 @@ function toArr(x){
 }
 function norm(s){
  if(!s||typeof s!=='object')s={};var mes=normMonth(typeof s.month==='string'&&s.month?s.month:thisMonth()),o={migs:(s.migs&&typeof s.migs==='object'?s.migs:{}),month:mes,monthAt:Number(s.monthAt)||0,resetAt:Number(s.resetAt)||0,rev:s.rev||0,dev:s.dev||'',items:[],history:[]};
- toArr(s.items).forEach(function(it){if(!it)return;o.items.push({id:it.id||uid(),mes:normMonth(it.mes||mes),day:normDia(it.day),desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),cat:(it.cat==='fixa'||it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',s:(it.s==='paid'?'paid':'pend'),at:Number(it.at)||0,by:it.by||'',del:!!it.del,delReason:it.delReason||'',originCloseId:it.originCloseId||'',gManual:!!it.gManual})});
+ toArr(s.items).forEach(function(it){if(!it)return;o.items.push({id:it.id||uid(),mes:normMonth(it.mes||mes),day:normDia(it.day),desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),cat:(it.cat==='fixa'||it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',s:(it.s==='paid'?'paid':'pend'),at:Number(it.at)||0,by:it.by||'',del:!!it.del,delReason:it.delReason||'',originCloseId:it.originCloseId||'',gManual:!!it.gManual,semanal:!!it.semanal,serie:it.serie||''})});
  toArr(s.history).forEach(function(m){if(!m)return;o.history.push({id:m.id||uid(),periodKey:m.periodKey||_mesKey(m.month),month:normMonth(m.month||''),closedAt:m.closedAt||'',paid:m.paid||0,pend:m.pend||0,all:m.all||0,text:m.text||'',items:toArr(m.items),at:Number(m.at)||0,by:m.by||'',del:!!m.del,delReason:m.delReason||''})});return o;
 }
 function syncCfg(){try{return JSON.parse(localStorage.getItem('guimas_despesas_sync')||'null')}catch(e){return null}}
@@ -2540,6 +2565,10 @@ function dgMarca(){try{var ym=_dgYm(state.month);document.querySelectorAll('#lis
 })();
 
 </script>
+<style>.semTgl{display:flex;gap:12px;align-items:center;width:100%;margin-top:10px;padding:12px 14px;border-radius:14px;border:1px solid rgba(20,28,36,.12);background:#fff;font:inherit;text-align:left;color:inherit;cursor:pointer}
+.semTgl .semChk{flex:0 0 26px;height:26px;border-radius:8px;border:2px solid rgba(20,28,36,.25);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px}
+.semTgl b{display:block;font-size:14px}.semTgl small{display:block;font-size:11.5px;opacity:.7;margin-top:2px;line-height:1.35}
+.semTgl.on{border-color:#1E8E5A;background:rgba(30,142,90,.08)}.semTgl.on .semChk{background:#1E8E5A;border-color:#1E8E5A;color:#fff}</style>
 <style id="modoEscuro">
 /* camada automática: toda regra clara do app ganha a versão escura */
 header{background-color:rgba(44,44,46,0.94)}
@@ -2714,6 +2743,13 @@ html.af body>.afBar{background-color:rgba(28,28,30,0.74)!important}
 /* topo sólido: no iPhone o vidro fosco do topo deixava o título e o "sincronizado" borrados */
 :root:is(#escA,html) body:is(#escB,body) header,:root:is(#escA,html) body:is(#escB,body) header.afHead,:root:is(#escA,html) body:is(#escB,body)>header{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:#000!important}
 
+
+/* v59: categoria escolhida tem que aparecer (antes ficava igual às outras) */
+:root:is(#escA,html) body:is(#escB,body) .catpick>button.sel{background:#F5F5F7!important;color:#111!important;border-color:#F5F5F7!important;box-shadow:0 0 0 2px rgba(245,245,247,.25)!important}
+:root:is(#escA,html) body:is(#escB,body) .semTgl{background:#2C2C2E!important;border-color:#3A3A3C!important;color:#F5F5F7!important}
+:root:is(#escA,html) body:is(#escB,body) .semTgl .semChk{border-color:#636366!important}
+:root:is(#escA,html) body:is(#escB,body) .semTgl.on{background:rgba(48,209,88,.14)!important;border-color:#30D158!important}
+:root:is(#escA,html) body:is(#escB,body) .semTgl.on .semChk{background:#30D158!important;border-color:#30D158!important;color:#000!important}
 </style>
 </body>
 </html>
