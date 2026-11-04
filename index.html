@@ -1194,7 +1194,7 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=56; var APP_DATE='03/11/2026';
+var APP_VER=57; var APP_DATE='03/11/2026';
 var KEY='guimas_despesas_v1';
 /* v51: compara placas e valores por código — o dado real não fica escrito no código público */
 function _sx(n){var h=2166136261,s=String(n);for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
@@ -2710,6 +2710,9 @@ html.af body>.afBar{background-color:rgba(28,28,30,0.74)!important}
 /* placa continua placa: branca com letra preta */
 :root:is(#escA,html) body:is(#escB,body) .plate,:root:is(#escA,html) body:is(#escB,body) .card .plate input{background:#F2F2F2!important;color:#111!important}
 :root:is(#escA,html) body:is(#escB,body) .plate .bar{background:#174A8C!important}
+
+/* topo sólido: no iPhone o vidro fosco do topo deixava o título e o "sincronizado" borrados */
+:root:is(#escA,html) body:is(#escB,body) header,:root:is(#escA,html) body:is(#escB,body) header.afHead,:root:is(#escA,html) body:is(#escB,body)>header{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:#000!important}
 
 </style>
 </body>
