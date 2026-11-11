@@ -1188,6 +1188,7 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
       <button class="btn ghost" onclick="askAnswer(false)">Cancelar</button>
       <button class="btn primary" id="askOk" onclick="askAnswer(true)">Confirmar</button>
     </div>
+    <button class="btn ghost" id="askAlt" style="display:none;width:100%;margin-top:8px" onclick="askAnswer('alt')"></button>
   </div>
 </div>
 
@@ -1195,7 +1196,7 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=65; var APP_DATE='05/11/2026';
+var APP_VER=66; var APP_DATE='11/11/2026';
 var KEY='guimas_despesas_v1';
 /* v51: compara placas e valores por código — o dado real não fica escrito no código público */
 function _sx(n){var h=2166136261,s=String(n);for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
@@ -1253,7 +1254,9 @@ function toast(msg){
  var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
  setTimeout(function(){t.classList.remove('show')},2200);
 }
-function ask(title,msg,okLabel,cb){
+var askAltCb=null;
+function ask(title,msg,okLabel,cb,altLabel,altCb){
+ var al=document.getElementById('askAlt');if(al){al.style.display=altLabel?'block':'none';al.textContent=altLabel||''}askAltCb=altLabel?altCb:null;
  document.getElementById('askTitle').textContent=title;
  document.getElementById('askMsg').textContent=msg;
  document.getElementById('askOk').textContent=okLabel||'Confirmar';
@@ -1262,7 +1265,8 @@ function ask(title,msg,okLabel,cb){
 }
 function askAnswer(yes){
  document.getElementById('ovAsk').classList.remove('open');
- var cb=askCb; askCb=null;
+ var cb=askCb,ac=askAltCb; askCb=null;askAltCb=null;
+ if(yes==='alt'){if(ac)ac();return}
  if(yes&&cb)cb();
 }
 function openMenu(){document.getElementById('ovMenu').classList.add('open')}
@@ -1655,7 +1659,8 @@ function _semId(serie,mes,dd){return 'sem_'+String(serie).replace(/[^A-Za-z0-9]/
 /* modelo da série para o mês seguinte: valor mais repetido no mês (uma semana diferente não muda as próximas) e a descrição mais recente */
 function _semModelo(lista){var cont={},best=null,bc=0,ult=null;lista.forEach(function(it){var k=String(it.v);cont[k]=(cont[k]||0)+1;if(cont[k]>bc||(cont[k]===bc&&parseInt(it.day,10)>parseInt(best.day,10))){bc=cont[k];best=it}if(!ult||(Number(it.at)||0)>(Number(ult.at)||0))ult=it});return {v:best?best.v:0,desc:ult?ult.desc:''}}
 /* cria as quartas que faltam de uma série num mês (não recria uma semana que você apagou) */
-function gerarQuartas(st,serie,mes,desc,v,ts){var n=0,items=toArr(st.items);quartasDoMes(mes).forEach(function(dd){
+function gerarQuartas(st,serie,mes,desc,v,ts,aPartir){var n=0,items=toArr(st.items);quartasDoMes(mes).forEach(function(dd){
+  if(aPartir&&parseInt(dd,10)<parseInt(aPartir,10))return; /* v66: ligado no meio do mês, repete daí para frente (não cria quarta que já passou antes dele) */
   var id=_semId(serie,mes,dd);if(items.some(function(x){return x&&x.id===id}))return;
   var ja=items.some(function(x){return x&&!x.del&&normMonth(x.mes||st.month)===normMonth(mes)&&x.day===dd&&((x.serie&&x.serie===serie)||(x.cat==='pix'&&String(x.desc||'').trim().toLowerCase()===String(desc||'').trim().toLowerCase()))});if(ja)return;
   st.items.push({id:id,mes:mes,day:dd,desc:desc,v:v,cat:'pix',s:'pend',at:ts,by:DEV,del:false,semanal:true,serie:serie});items=toArr(st.items);n++});return n}
@@ -1665,15 +1670,25 @@ function _ehQuarta(it){return quartasDoMes(state.month).indexOf(normDia(it.day))
 /* v61: ligado não mostra faixa nenhuma — só um 🔁 pequeno no ícone (tocar no ícone pergunta se quer parar) */
 function semLinha(it){if(it.cat!=='pix'||it.semanal||!_ehQuarta(it))return '';
  return '<button class="semLine" onclick="semToggle(\''+it.id+'\')">🔁 repetir toda quarta</button>'}
-function semToggle(id){if(travado())return;var it=find(id);if(!it||it.cat!=='pix')return;var ts=agora();
- if(it.semanal&&it.serie){var se=it.serie,mes=normMonth(state.month);ask('Parar de repetir','"'+it.desc+'" deixa de entrar sozinho toda quarta-feira a partir do próximo mês. As semanas que já estão neste mês continuam.','Parar',function(){toArr(state.items).forEach(function(x){if(x&&!x.del&&x.serie===se&&normMonth(x.mes||mes)===mes){x.semanal=false;x.at=ts;x.by=DEV}});save();render();toast('Não repete mais toda quarta')});return}
- if(!it.serie)it.serie=uid()+uid();it.semanal=true;it.at=ts;it.by=DEV;var n=gerarQuartas(state,it.serie,state.month,it.desc,it.v,ts);save();render();
- toast('🔁 '+it.desc+': toda quarta'+(n?' (+'+n+' semana'+(n>1?'s':'')+' neste mês)':''))}
+/* v66 (Hudson 11/11): um toque sem querer no "repetir toda quarta" criava cópias em todas as quartas.
+   Agora LIGAR pergunta antes (mostra os dias), e PARAR oferece apagar as cópias ainda não pagas deste mês. */
+function _semDiasNovos(it){var dd=normDia(it.day),mes=normMonth(state.month),its=itens();return quartasDoMes(state.month).filter(function(q){return parseInt(q,10)>parseInt(dd,10)&&!its.some(function(x){return x.day===q&&normMonth(x.mes||mes)===mes&&((it.serie&&x.serie===it.serie)||(x.cat==='pix'&&String(x.desc||'').trim().toLowerCase()===String(it.desc||'').trim().toLowerCase()))})})}
+function semToggle(id){if(travado())return;var it=find(id);if(!it||it.cat!=='pix')return;
+ if(it.semanal&&it.serie){var se=it.serie,mes=normMonth(state.month);
+  var copias=toArr(state.items).filter(function(x){return x&&!x.del&&x.serie===se&&normMonth(x.mes||mes)===mes&&x.s!=='paid'&&x.id!==it.id&&String(x.id).indexOf('sem_')===0});
+  var parar=function(apagar){var ts=agora(),n=0;toArr(state.items).forEach(function(x){if(x&&!x.del&&x.serie===se&&normMonth(x.mes||mes)===mes){x.semanal=false;x.at=ts;x.by=DEV;if(apagar&&copias.indexOf(x)>=0){x.del=true;x.delReason='semanal desligado';n++}}});save();render();toast(apagar&&n?'Não repete mais · '+n+' cópia'+(n>1?'s':'')+' apagada'+(n>1?'s':''):'Não repete mais toda quarta')};
+  if(copias.length)ask('Parar de repetir','"'+it.desc+'" não entra mais sozinho toda quarta-feira.\n\nApagar também as '+copias.length+' cópia'+(copias.length>1?'s':'')+' ainda não paga'+(copias.length>1?'s':'')+' deste mês (dia'+(copias.length>1?'s ':' ')+copias.map(function(x){return +x.day}).join(', ')+')? Fica'+(function(){var k=toArr(state.items).filter(function(x){return x&&!x.del&&x.serie===se&&normMonth(x.mes||mes)===mes&&copias.indexOf(x)<0}).map(function(x){return +x.day}).sort(function(a,b){return a-b});return k.length>1?'m as dos dias '+k.join(', '):' só a do dia '+(k[0]||+it.day)})()+'.','Parar e apagar as cópias',function(){parar(true)},'Parar só no próximo mês (manter as cópias)',function(){parar(false)});
+  else ask('Parar de repetir','"'+it.desc+'" deixa de entrar sozinho toda quarta-feira a partir do próximo mês.','Parar',function(){parar(false)});
+  return}
+ var dias=_semDiasNovos(it);
+ ask('Repetir toda quarta?','"'+it.desc+'" ('+fmt(it.v)+') vai entrar sozinho toda quarta-feira'+(dias.length?': cria '+(dias.length>1?'as linhas dos dias ':'a linha do dia ')+dias.map(function(d){return +d}).join(', ')+' deste mês':'')+' e, ao fechar o mês, todas as quartas do mês seguinte.\n\nSe foi um PIX só desta vez, toque em Cancelar.','Repetir toda quarta',function(){
+  var ts=agora();if(!it.serie)it.serie=uid()+uid();it.semanal=true;it.at=ts;it.by=DEV;var n=gerarQuartas(state,it.serie,state.month,it.desc,it.v,ts,it.day);save();render();
+  toast('🔁 '+it.desc+': toda quarta'+(n?' (+'+n+' semana'+(n>1?'s':'')+' neste mês)':''))})}
 function renderCatPick(){
  document.getElementById('adCats').innerHTML=CATS.map(function(c){
   return '<button class="'+(AD_CAT===c.k?'sel':'')+'" onclick="AD_CAT=\''+c.k+'\';renderCatPick()">'+c.ic+' '+c.n+'</button>';
  }).join('');
- var b=document.getElementById('adSemBox');if(b)b.innerHTML=AD_CAT==='pix'?'<button type="button" class="semTgl'+(AD_SEM?' on':'')+'" onclick="AD_SEM=!AD_SEM;renderCatPick()"><span class="semChk">'+(AD_SEM?'✓':'')+'</span><span><b>🔁 Toda quarta-feira</b><small>'+(AD_SEM?'Entra em todas as quartas deste mês ('+quartasDoMes(state.month).map(function(d){return +d}).join(', ')+') e, ao fechar o mês, em todas as do mês seguinte.':'Toque para repetir este PIX em todas as quartas do mês.')+'</small></span></button>':'';
+ var b=document.getElementById('adSemBox');if(b)b.innerHTML=AD_CAT==='pix'?'<button type="button" class="semTgl'+(AD_SEM?' on':'')+'" onclick="AD_SEM=!AD_SEM;renderCatPick()"><span class="semChk">'+(AD_SEM?'✓':'')+'</span><span><b>🔁 Toda quarta-feira</b><small>'+(AD_SEM?'Entra nas quartas deste mês a partir do dia escolhido ('+quartasDoMes(state.month).filter(function(d){var ad=parseInt(normDia((document.getElementById('adDay')||{}).value||''),10);return !ad||parseInt(d,10)>=ad}).map(function(d){return +d}).join(', ')+') e, ao fechar o mês, em todas as do mês seguinte.':'Só marque se este PIX se repete toda semana.')+'</small></span></button>':'';
 }
 var _semMsg='';
 function saveAdd(){
@@ -1685,13 +1700,13 @@ function saveAdd(){
   var it=find(AD_ID);
   if(it){var eraSem=!!it.semanal;it.day=day;it.desc=desc;it.v=v;it.cat=AD_CAT;it.at=agora();it.by=DEV;
    var querSem=AD_SEM&&AD_CAT==='pix';
-   if(querSem){if(!it.serie)it.serie=uid()+uid();it.semanal=true;var ns=gerarQuartas(state,it.serie,state.month,desc,v,agora());if(!eraSem)_semMsg=ns?'🔁 Toda quarta: +'+ns+' semana'+(ns>1?'s':'')+' neste mês':'🔁 Toda quarta-feira ligado'}
+   if(querSem){if(!it.serie)it.serie=uid()+uid();it.semanal=true;var ns=gerarQuartas(state,it.serie,state.month,desc,v,agora(),eraSem?'':day);if(!eraSem)_semMsg=ns?'🔁 Toda quarta: +'+ns+' semana'+(ns>1?'s':'')+' neste mês':'🔁 Toda quarta-feira ligado'}
    else if(eraSem){var se=it.serie;itens().forEach(function(x){if(x.serie&&x.serie===se){x.semanal=false;x.at=agora();x.by=DEV}});it.semanal=false;_semMsg='Não repete mais toda quarta (as semanas deste mês ficam)'}}
  }else{
   var novo={id:uid(),mes:state.month,day:day,desc:desc,v:v,cat:AD_CAT,s:'pend',at:agora(),by:DEV,del:false};
   if(AD_SEM&&AD_CAT==='pix'){novo.semanal=true;novo.serie=uid()+uid()}
   state.items.push(novo);
-  if(novo.semanal){var ns2=gerarQuartas(state,novo.serie,state.month,desc,v,agora());_semMsg='🔁 Toda quarta: '+(ns2+1)+' linha'+(ns2?'s':'')+' neste mês'}
+  if(novo.semanal){var ns2=gerarQuartas(state,novo.serie,state.month,desc,v,agora(),day);_semMsg='🔁 Toda quarta: '+(ns2+1)+' linha'+(ns2?'s':'')+' neste mês'}
  }
  save();
  document.getElementById('ovAdd').classList.remove('open');
