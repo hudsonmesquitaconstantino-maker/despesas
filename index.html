@@ -1196,7 +1196,7 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=66; var APP_DATE='11/11/2026';
+var APP_VER=67; var APP_DATE='18/11/2026';
 var KEY='guimas_despesas_v1';
 /* v51: compara placas e valores por código — o dado real não fica escrito no código público */
 function _sx(n){var h=2166136261,s=String(n);for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
@@ -1656,8 +1656,14 @@ function openAdd(id,cat,day){
 function quartasDoMes(mes){var p=String(mes||'').split('/'),i=mIndex(p[0]),y=parseInt(p[1],10),out=[];if(i<0||isNaN(y))return out;
  for(var d=1;d<=31;d++){var dt=new Date(y,i,d);if(dt.getMonth()!==i)break;if(dt.getDay()===3)out.push(('0'+d).slice(-2))}return out}
 function _semId(serie,mes,dd){return 'sem_'+String(serie).replace(/[^A-Za-z0-9]/g,'')+'_'+String(mes).replace(/[^A-Za-z0-9]/g,'')+'_'+dd}
-/* modelo da série para o mês seguinte: valor mais repetido no mês (uma semana diferente não muda as próximas) e a descrição mais recente */
-function _semModelo(lista){var cont={},best=null,bc=0,ult=null;lista.forEach(function(it){var k=String(it.v);cont[k]=(cont[k]||0)+1;if(cont[k]>bc||(cont[k]===bc&&parseInt(it.day,10)>parseInt(best.day,10))){bc=cont[k];best=it}if(!ult||(Number(it.at)||0)>(Number(ult.at)||0))ult=it});return {v:best?best.v:0,desc:ult?ult.desc:''}}
+/* modelo da série para o mês seguinte.
+   v67 (Hudson 18/11): o valor é o da ÚLTIMA quarta do mês (a mais recente), não o mais repetido — se ele mudou
+   para R$ 800 no dia 18, as próximas e o mês seguinte ficam R$ 800; se voltou para R$ 400, fica R$ 400.
+   Uma semana marcada "só esta semana" (semExc) não conta. A descrição continua sendo a mais recente. */
+function _semModelo(lista){var ok=lista.filter(function(x){return !x.semExc}),base=ok.length?ok:lista,b=null,u=null;
+ base.forEach(function(it){if(!b||parseInt(it.day,10)>parseInt(b.day,10)||(parseInt(it.day,10)===parseInt(b.day,10)&&(Number(it.at)||0)>(Number(b.at)||0)))b=it});
+ lista.forEach(function(it){if(!u||(Number(it.at)||0)>(Number(u.at)||0))u=it});return {v:b?b.v:0,desc:u?u.desc:''}}
+function _semModeloAntigo(lista){var cont={},best=null,bc=0,ult=null;lista.forEach(function(it){var k=String(it.v);cont[k]=(cont[k]||0)+1;if(cont[k]>bc||(cont[k]===bc&&parseInt(it.day,10)>parseInt(best.day,10))){bc=cont[k];best=it}if(!ult||(Number(it.at)||0)>(Number(ult.at)||0))ult=it});return {v:best?best.v:0,desc:ult?ult.desc:''}}
 /* cria as quartas que faltam de uma série num mês (não recria uma semana que você apagou) */
 function gerarQuartas(st,serie,mes,desc,v,ts,aPartir){var n=0,items=toArr(st.items);quartasDoMes(mes).forEach(function(dd){
   if(aPartir&&parseInt(dd,10)<parseInt(aPartir,10))return; /* v66: ligado no meio do mês, repete daí para frente (não cria quarta que já passou antes dele) */
@@ -1698,9 +1704,10 @@ function saveAdd(){
  if(!desc){toast('⚠️ Escreva a descrição');return}
  if(AD_ID){
   var it=find(AD_ID);
-  if(it){var eraSem=!!it.semanal;it.day=day;it.desc=desc;it.v=v;it.cat=AD_CAT;it.at=agora();it.by=DEV;
+  if(it){var eraSem=!!it.semanal,_vAntes=it.v;it.day=day;it.desc=desc;it.v=v;it.cat=AD_CAT;it.at=agora();it.by=DEV;
    var querSem=AD_SEM&&AD_CAT==='pix';
-   if(querSem){if(!it.serie)it.serie=uid()+uid();it.semanal=true;var ns=gerarQuartas(state,it.serie,state.month,desc,v,agora(),eraSem?'':day);if(!eraSem)_semMsg=ns?'🔁 Toda quarta: +'+ns+' semana'+(ns>1?'s':'')+' neste mês':'🔁 Toda quarta-feira ligado'}
+   if(querSem&&eraSem&&it.serie&&_vAntes!==v)_semPerguntaValor=it.id+'|'+_vAntes;
+   if(querSem){if(!it.serie)it.serie=uid()+uid();it.semanal=true;var ns=gerarQuartas(state,it.serie,state.month,desc,v,agora(),day); /* v67: editar nunca recria quarta que já passou (antes do dia editado) */if(!eraSem)_semMsg=ns?'🔁 Toda quarta: +'+ns+' semana'+(ns>1?'s':'')+' neste mês':'🔁 Toda quarta-feira ligado'}
    else if(eraSem){var se=it.serie;itens().forEach(function(x){if(x.serie&&x.serie===se){x.semanal=false;x.at=agora();x.by=DEV}});it.semanal=false;_semMsg='Não repete mais toda quarta (as semanas deste mês ficam)'}}
  }else{
   var novo={id:uid(),mes:state.month,day:day,desc:desc,v:v,cat:AD_CAT,s:'pend',at:agora(),by:DEV,del:false};
@@ -1711,8 +1718,19 @@ function saveAdd(){
  save();
  document.getElementById('ovAdd').classList.remove('open');
  render();
- toast(_semMsg||(AD_ID?'Despesa atualizada ✓':'Despesa adicionada ✓'));_semMsg='';
+ if(!_semPerguntaValor)toast(_semMsg||(AD_ID?'Despesa atualizada ✓':'Despesa adicionada ✓'));_semMsg='';
+ if(_semPerguntaValor){var _pv=_semPerguntaValor;_semPerguntaValor='';setTimeout(function(){_semMudouValor(_pv)},350)}
 }
+/* v67 (Hudson 18/11): mudou o valor de um PIX de toda quarta → pergunta se vale para as próximas.
+   "Esta e as próximas": muda as quartas seguintes deste mês que ainda não foram pagas e os próximos meses.
+   As quartas que já passaram (antes desta) nunca mudam. "Só esta semana": as próximas continuam como estavam. */
+var _semPerguntaValor='';
+function _semMudouValor(pv){var pr=String(pv).split('|'),it=find(pr[0]);if(!it||!it.serie)return;var antes=Number(pr[1])||0,v=it.v,se=it.serie,mes=normMonth(it.mes||state.month),dd=parseInt(it.day,10);
+ var prox=toArr(state.items).filter(function(x){return x&&!x.del&&x.id!==it.id&&x.serie===se&&normMonth(x.mes||mes)===mes&&parseInt(x.day,10)>dd&&x.s!=='paid'});
+ var aplica=function(){var ts=agora();prox.forEach(function(x){x.v=v;x.semExc=false;x.at=ts;x.by=DEV});it.semExc=false;it.at=ts;it.by=DEV;save();render();
+  toast('🔁 '+it.desc+': '+fmt(v)+(prox.length?' nesta e nas próximas ('+prox.length+' quarta'+(prox.length>1?'s':'')+' deste mês)':'')+' e nos próximos meses')};
+ var so=function(){it.semExc=true;it.at=agora();it.by=DEV;save();render();toast('Só esta semana ficou '+fmt(v)+' · as próximas continuam '+fmt(antes))};
+ ask('Mudar as próximas também?','"'+it.desc+'" passou de '+fmt(antes)+' para '+fmt(v)+' na quarta, '+('0'+(+it.day)).slice(-2)+'/'+('0'+(mIndex(String(mes).split('/')[0])+1)).slice(-2)+'.\n\n'+(prox.length?'As próximas quartas deste mês ('+prox.map(function(x){return 'qua '+('0'+(+x.day)).slice(-2)}).join(', ')+') e os próximos meses':'Os próximos meses')+' também ficam '+fmt(v)+'? As quartas que já passaram não mudam.','Esta e as próximas',aplica,'Só esta semana',so)}
 
 /* ---------- texto para WhatsApp ---------- */
 function buildText(items,month){
@@ -1909,7 +1927,7 @@ function toArr(x){
 }
 function norm(s){
  if(!s||typeof s!=='object')s={};var mes=normMonth(typeof s.month==='string'&&s.month?s.month:thisMonth()),o={migs:(s.migs&&typeof s.migs==='object'?s.migs:{}),month:mes,monthAt:Number(s.monthAt)||0,resetAt:Number(s.resetAt)||0,rev:s.rev||0,dev:s.dev||'',items:[],history:[]};
- toArr(s.items).forEach(function(it){if(!it)return;o.items.push({id:it.id||uid(),mes:normMonth(it.mes||mes),day:normDia(it.day),desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),cat:(it.cat==='fixa'||it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',s:(it.s==='paid'?'paid':'pend'),at:Number(it.at)||0,by:it.by||'',del:!!it.del,delReason:it.delReason||'',originCloseId:it.originCloseId||'',gManual:!!it.gManual,semanal:!!it.semanal,serie:it.serie||''})});
+ toArr(s.items).forEach(function(it){if(!it)return;o.items.push({id:it.id||uid(),mes:normMonth(it.mes||mes),day:normDia(it.day),desc:it.desc||'',v:(typeof it.v==='number'?it.v:0),cat:(it.cat==='fixa'||it.cat==='cartao'||it.cat==='outros'||it.cat==='seguro'||it.cat==='pix')?it.cat:'outros',s:(it.s==='paid'?'paid':'pend'),at:Number(it.at)||0,by:it.by||'',del:!!it.del,delReason:it.delReason||'',originCloseId:it.originCloseId||'',gManual:!!it.gManual,semanal:!!it.semanal,serie:it.serie||'',semExc:!!it.semExc})});
  toArr(s.history).forEach(function(m){if(!m)return;o.history.push({id:m.id||uid(),periodKey:m.periodKey||_mesKey(m.month),month:normMonth(m.month||''),closedAt:m.closedAt||'',paid:m.paid||0,pend:m.pend||0,all:m.all||0,text:m.text||'',items:toArr(m.items),at:Number(m.at)||0,by:m.by||'',del:!!m.del,delReason:m.delReason||''})});return o;
 }
 function syncCfg(){try{return JSON.parse(localStorage.getItem('guimas_despesas_sync')||'null')}catch(e){return null}}
