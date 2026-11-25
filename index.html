@@ -1196,7 +1196,7 @@ html.gsplOn.gsplFull,html.gsplOn.gsplFull body,html.gsplOn.gsplFull body.locked{
 
 <script>
 /* ================= APP DE DESPESAS — GuimasCar ================= */
-var APP_VER=67; var APP_DATE='18/11/2026';
+var APP_VER=68; var APP_DATE='25/11/2026';
 var KEY='guimas_despesas_v1';
 /* v51: compara placas e valores por código — o dado real não fica escrito no código público */
 function _sx(n){var h=2166136261,s=String(n);for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
@@ -1674,8 +1674,9 @@ function gerarQuartas(st,serie,mes,desc,v,ts,aPartir){var n=0,items=toArr(st.ite
 /* v60: o PIX da lista liga/desliga "toda quarta-feira" direto na linha (não precisa abrir nada) */
 function _ehQuarta(it){return quartasDoMes(state.month).indexOf(normDia(it.day))>=0}
 /* v61: ligado não mostra faixa nenhuma — só um 🔁 pequeno no ícone (tocar no ícone pergunta se quer parar) */
-function semLinha(it){if(it.cat!=='pix'||it.semanal||!_ehQuarta(it))return '';
- return '<button class="semLine" onclick="semToggle(\''+it.id+'\')">🔁 repetir toda quarta</button>'}
+/* v68 (Hudson 25/11): a linha NÃO mostra mais "repetir toda quarta" em todo PIX que cai numa quarta.
+   Repetir só existe quando ele marca a caixa "repetir toda quarta" ao lançar ou editar o PIX. */
+function semLinha(it){return ''}
 /* v66 (Hudson 11/11): um toque sem querer no "repetir toda quarta" criava cópias em todas as quartas.
    Agora LIGAR pergunta antes (mostra os dias), e PARAR oferece apagar as cópias ainda não pagas deste mês. */
 function _semDiasNovos(it){var dd=normDia(it.day),mes=normMonth(state.month),its=itens();return quartasDoMes(state.month).filter(function(q){return parseInt(q,10)>parseInt(dd,10)&&!its.some(function(x){return x.day===q&&normMonth(x.mes||mes)===mes&&((it.serie&&x.serie===it.serie)||(x.cat==='pix'&&String(x.desc||'').trim().toLowerCase()===String(it.desc||'').trim().toLowerCase()))})})}
